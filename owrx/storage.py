@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 class Storage(object):
     sharedInstance = None
     creationLock = threading.Lock()
-    filePattern = r'[A-Z0-9]+-[0-9]+-[0-9]+(-[0-9]+)?(-[0-9]+)?\.(bmp|png|txt|mp3)'
+    filePattern = r'[A-Z0-9]+-[0-9]+-[0-9]+(-[0-9]+)?(-[0-9]+)?\.(bmp|png|txt|mp3|wav)|[0-9]+\.[0-9]+MHz_[0-9]+_[0-9]+\.wav'
 
     # Get shared instance of Storage class
     @staticmethod
@@ -59,8 +59,14 @@ class Storage(object):
     # (so that newer files appear first)
     def getStoredFiles(self):
         dir = CoreConfig().get_temporary_directory()
+        recordings_dir = "/var/lib/openwebrx/recordings"
         with self.lock:
             files = [os.path.join(dir, f) for f in os.listdir(dir) if re.match(self.filePattern, f)]
+            # Add recordings from recordings directory
+            if os.path.exists(recordings_dir):
+                rec_files = [os.path.join(recordings_dir, f) for f in os.listdir(recordings_dir) 
+                            if f.endswith('.wav') or re.match(self.filePattern, f)]
+                files.extend(rec_files)
         files.sort(key=lambda x: os.path.getctime(x), reverse=True)
         return [os.path.basename(f) for f in files]
 
@@ -90,6 +96,11 @@ class Storage(object):
     # adding folder name
     @staticmethod
     def getFilePath(filename: str):
+        # Check in recordings directory first
+        recordings_path = os.path.join("/var/lib/openwebrx/recordings", filename)
+        if os.path.exists(recordings_path):
+            return recordings_path
+        # Fallback to temp directory
         return os.path.join(CoreConfig().get_temporary_directory(), filename)
 
     # Create stored file name by inserting current UTC date
