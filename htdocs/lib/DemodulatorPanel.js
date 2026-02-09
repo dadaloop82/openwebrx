@@ -334,12 +334,21 @@ DemodulatorPanel.prototype.parseHash = function() {
         return params;
     }, {});
 
+    // If profile param is present, defer all params to the profiles handler
+    if (params.profile) {
+        window._pendingHashParams = params;
+        return {};
+    }
+
     return this.validateHash(params);
 };
 
 DemodulatorPanel.prototype.validateHash = function(params) {
     var self = this;
     params = Object.keys(params).filter(function(key) {
+        if (key == 'profile' || key == 'bandwidth') {
+            return true;
+        }
         if (key == 'freq' || key == 'mod' || key == 'secondary_mod' || key == 'sql') {
             return params.freq && Math.abs(params.freq - self.center_freq) <= bandwidth / 2;
         }
@@ -369,6 +378,7 @@ DemodulatorPanel.prototype.validateInitialParams = function(params) {
 };
 
 DemodulatorPanel.prototype.updateHash = function() {
+    if (window._pendingHashParams) return;
     var demod = this.getDemodulator();
     if (!demod) return;
     var self = this;

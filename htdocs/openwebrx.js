@@ -1040,6 +1040,31 @@ function on_ws_recv(evt) {
                         if (Object.keys(json['value']).length) {
                             $('#openwebrx-error-overlay').hide();
                         }
+                        // Handle profile selection from URL hash params
+                        if (window._pendingHashParams && window._pendingHashParams.profile) {
+                            var targetProfile = window._pendingHashParams.profile;
+                            var availableProfiles = json['value'].map(function(p) { return p['id']; });
+                            if (availableProfiles.indexOf(targetProfile) !== -1) {
+                                var remainingParams = Object.assign({}, window._pendingHashParams);
+                                delete remainingParams.profile;
+                                window._pendingHashParams = remainingParams;
+                                $('#openwebrx-sdr-profiles-listbox').val(targetProfile);
+                                sdr_profile_changed();
+                                // Apply remaining hash params after profile loads
+                                setTimeout(function() {
+                                    if (window._pendingHashParams && Object.keys(window._pendingHashParams).length > 0) {
+                                        var dp = UI.getDemodulatorPanel();
+                                        if (dp) {
+                                            var transformed = dp.transformHashParams(dp.validateHash(window._pendingHashParams));
+                                            dp._apply(transformed);
+                                        }
+                                    }
+                                    window._pendingHashParams = null;
+                                }, 1000);
+                            } else {
+                                window._pendingHashParams = null;
+                            }
+                        }
                         break;
                     case "features":
                         Modes.setFeatures(json['value']);
