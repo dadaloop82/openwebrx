@@ -13,6 +13,12 @@ logger = logging.getLogger(__name__)
 
 class FaxParser(DataRecorder, ThreadModule):
     def __init__(self, service: bool = False):
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info("=== FaxParser initializing, service=%s ===" % service)
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info("=== FaxParser initializing, service=%s ===" % service)
         self.service = service
         self.data    = bytearray(b'')
         self.width   = 0
@@ -85,10 +91,16 @@ class FaxParser(DataRecorder, ThreadModule):
 
     def run(self):
         logger.debug("%s starting..." % self.myName())
+        logger.info("FAX PARSER STARTED: lpm=%d, ioc=%d, width=%d, height=%d" % (self.lpm, self.ioc, self.width, self.height))
+        logger.info("FAX PARSER STARTED: lpm=%d, ioc=%d, width=%d, height=%d" % (self.lpm, self.ioc, self.width, self.height))
         # Run while there is input data
         while self.doRun:
             # Read input data
             inp = self.reader.read()
+            if inp is not None:
+                logger.info("FAX received %d bytes of audio data" % len(inp))
+            if inp is not None:
+                logger.info("FAX received %d bytes of audio data" % len(inp))
             # Terminate if no input data
             if inp is None:
                 self.doRun = False

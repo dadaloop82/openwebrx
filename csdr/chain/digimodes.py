@@ -196,6 +196,19 @@ class SstvDemodulator(ServiceDemodulator, DialFrequencyReceiver):
 
 class FaxDemodulator(ServiceDemodulator, DialFrequencyReceiver):
     def __init__(self, service: bool = False):
+        self.parser = FaxParser()
+        pm = Config.get()
+        self.lpm = pm["fax_lpm"]
+        self.sampleRate = 12000
+        self.am = pm.get("fax_am", True)
+        logger.info("═══════════════════════════════════════════════════")
+        logger.info("🖨️  FAX DECODER ATTIVATO")
+        logger.info("   Velocità: %d LPM (linee/minuto)", self.lpm)
+        logger.info("   Sample Rate: %d Hz", self.sampleRate)
+        logger.info("   Modalità AM: %s", self.am)
+        logger.info("   ⏳ In attesa di trasmissione FAX...")
+        logger.info("   Il decoder cerca l'header BMP nel flusso audio")
+        logger.info("═══════════════════════════════════════════════════")
         pm = Config.get()
         self.parser      = FaxParser(service=service)
         self.sampleRate  = 12000
@@ -217,6 +230,12 @@ class FaxDemodulator(ServiceDemodulator, DialFrequencyReceiver):
             ),
             self.parser
         ]
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info("=== FaxDemodulator init: lpm=%d, sampleRate=%d, am=%s, color=%s ===" % (self.lpm, self.sampleRate, self.am, self.color))
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info("=== FaxDemodulator init: lpm=%d, sampleRate=%d, am=%s, color=%s ===" % (self.lpm, self.sampleRate, self.am, self.color))
         super().__init__(workers)
 
     def getFixedAudioRate(self) -> int:
