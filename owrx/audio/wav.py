@@ -9,6 +9,7 @@ from queue import Full
 from typing import List
 
 import logging
+from owrx.auto_squelch_recorder import get_recorder
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -134,6 +135,18 @@ class AudioWriter(object):
         self._scheduleNextSwitch()
 
     def write(self, data):
+        # Feed audio to squelch recorder
+        try:
+            recorder = get_recorder()
+            if hasattr(self.chopper, 'dialFrequency') and self.chopper.dialFrequency:
+                # Simple squelch: if we're getting audio data, assume signal present
+                if len(data) > 0:
+                    if not recorder.is_recording:
+                        recorder.on_squelch_open(self.chopper.dialFrequency)
+                    recorder.write_audio_chunk(data)
+        except Exception as e:
+            pass  # Don't break audio chain
+        
         with self.switchingLock:
             self.wavefile.writeframes(data)
 
