@@ -65,8 +65,8 @@ class FilesController(WebpageController):
                 size = ""
             # Print out individual tiles
             rows += ('<td class="file-tile">' +
-                ('<a href="files/%s" download="%s">' % (files[i], files[i])) +
-                ('<img src="%s" download="%s">' % (shot, files[i])) +
+                ('<a href="files/%s">' % (files[i],)) +
+                ('<img src="%s">' % (shot,)) +
                 ('<div class="file-size">%s</div>' % size) +
                 ('<p class="file-title">%s</p>' % files[i]) +
                 ('</a>%s</td>\n' % buttons))
