@@ -3,3 +3,8 @@
 tags
 .idea
 packages
+build/
+OpenWebRX.egg-info/
+*.pyc
+__pycache__/
+*.egg

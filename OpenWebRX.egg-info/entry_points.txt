@@ -1,2 +1,0 @@
-[console_scripts]
-openwebrx = owrx.__main__:main
