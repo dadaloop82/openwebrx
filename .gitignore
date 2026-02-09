@@ -8,3 +8,14 @@ OpenWebRX.egg-info/
 *.pyc
 __pycache__/
 *.egg
+
+# Audio recordings
+/var/lib/openwebrx/recordings/
+*.mp3
+
+# Backup files
+*.bak
+*.backup_*
+
+# Log files
+/var/log/openwebrx-autorecorder.log
