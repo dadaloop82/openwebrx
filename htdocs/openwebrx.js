@@ -1064,17 +1064,43 @@ function on_ws_recv(evt) {
                                 window._pendingHashParams = remainingParams;
                                 $('#openwebrx-sdr-profiles-listbox').val(matchedProfile);
                                 sdr_profile_changed();
-                                // Apply remaining hash params after profile loads
-                                setTimeout(function() {
-                                    if (window._pendingHashParams && Object.keys(window._pendingHashParams).length > 0) {
-                                        var dp = UI.getDemodulatorPanel();
-                                        if (dp) {
-                                            var transformed = dp.transformHashParams(dp.validateHash(window._pendingHashParams));
-                                            dp._apply(transformed);
+                                // Apply remaining hash params after profile fully loads
+                                // We wait for center_freq to be updated by the server
+                                var applyHashParams = function(attempt) {
+                                    var dp = UI.getDemodulatorPanel();
+                                    if (!dp || !dp.center_freq || !dp.getDemodulator()) {
+                                        if (attempt < 20) {
+                                            setTimeout(function() { applyHashParams(attempt + 1); }, 250);
+                                        } else {
+                                            window._pendingHashParams = null;
                                         }
+                                        return;
+                                    }
+                                    var p = window._pendingHashParams;
+                                    if (p && Object.keys(p).length > 0) {
+                                        // Apply modulation first
+                                        if (p.mod) {
+                                            if (p.secondary_mod) {
+                                                dp.setMode(p.secondary_mod, p.mod);
+                                            } else {
+                                                dp.setMode(p.mod);
+                                            }
+                                        }
+                                        // Apply frequency directly using current center_freq
+                                        if (p.freq) {
+                                            var targetFreq = parseInt(p.freq);
+                                            var offset = targetFreq - dp.center_freq;
+                                            dp.getDemodulator().set_offset_frequency(offset);
+                                        }
+                                        // Apply squelch
+                                        if (p.sql) {
+                                            dp.getDemodulator().setSquelch(parseInt(p.sql));
+                                        }
+                                        dp.updateHash();
                                     }
                                     window._pendingHashParams = null;
-                                }, 1000);
+                                };
+                                setTimeout(function() { applyHashParams(0); }, 1500);
                             } else {
                                 window._pendingHashParams = null;
                             }
