@@ -135,15 +135,12 @@ class AudioWriter(object):
         self._scheduleNextSwitch()
 
     def write(self, data):
-        # Feed audio to squelch recorder
+        # Feed audio to squelch recorder (auto-starts/stops recording)
         try:
             recorder = get_recorder()
             if hasattr(self.chopper, 'dialFrequency') and self.chopper.dialFrequency:
-                # Simple squelch: if we're getting audio data, assume signal present
-                if len(data) > 0:
-                    if not recorder.is_recording:
-                        recorder.on_squelch_open(self.chopper.dialFrequency)
-                    recorder.write_audio_chunk(data)
+                # Pass audio data - recorder handles start/stop automatically
+                recorder.write_audio_chunk(data, self.chopper.dialFrequency)
         except Exception as e:
             pass  # Don't break audio chain
         
