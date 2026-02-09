@@ -11,6 +11,7 @@ import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
+from owrx.recording_notifier import get_notifier
 
 RECORDINGS_DIR = "/var/lib/openwebrx/recordings"
 MIN_DURATION_SECONDS = 5
@@ -78,6 +79,13 @@ class SquelchRecorder:
             self.is_recording = True
             
             logger.info("📼 Recording started: %s", filename)
+            
+            # Notify clients
+            try:
+                notifier = get_notifier()
+                notifier.notify_recording_start(self.current_frequency_hz)
+            except:
+                pass
     
     def on_squelch_close(self):
         """Called when squelch closes (signal lost)"""
@@ -92,6 +100,13 @@ class SquelchRecorder:
             self.current_filepath = None
             self.current_frequency_hz = None
             self.recording_start_time = None
+            
+            # Notify clients that recording stopped
+            try:
+                notifier = get_notifier()
+                notifier.notify_recording_stop()
+            except:
+                pass
             
             # Check duration after short delay to ensure file is written
             threading.Timer(1.0, self._check_recording_duration, args=[filepath, duration]).start()

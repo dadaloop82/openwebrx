@@ -489,6 +489,13 @@ class OpenWebRxReceiverClient(OpenWebRxClient, SdrSourceEventClient):
         except ValueError:
             logger.warning("unable to send smeter value: %s", str(level))
 
+    def write_recording_status(self, status):
+        """Send recording status to client"""
+        try:
+            self.send({"type": "recording_status", "value": status})
+        except Exception as e:
+            logger.warning("unable to send recording status: %s", str(e))
+
     def write_cpu_usage(self, usage):
         self.mp_send({"type": "cpuusage", "value": usage})
 
