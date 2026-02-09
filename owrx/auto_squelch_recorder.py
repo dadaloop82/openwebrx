@@ -21,6 +21,7 @@ MIN_DURATION_SECONDS = 3
 MAX_AGE_DAYS = 7
 CLEANUP_INTERVAL = 300
 SILENCE_TIMEOUT = 3.0
+FREQ_DWELL_SECONDS = 2.0  # Must stay on a frequency this long before recording starts
 AUDIO_RMS_THRESHOLD = 0.015  # Float threshold (range -1.0 to 1.0)
 
 logging.basicConfig(
@@ -61,6 +62,10 @@ class SquelchRecorder:
         self.silence_timer = None
         self.chunk_count = 0
         
+        # Frequency change tracking
+        self._last_seen_freq = None
+        self._freq_stable_since = None  # When the current frequency was first seen
+        
         self.cleanup_thread = threading.Thread(target=self._cleanup_worker, daemon=True)
         self.cleanup_thread.start()
         
@@ -78,8 +83,8 @@ class SquelchRecorder:
         
         self._initialized = True
         
-        logger.info("Squelch Recorder initialized - directory: %s (RMS threshold: %.4f, min duration: %ds)", 
-                     self.recordings_dir, AUDIO_RMS_THRESHOLD, MIN_DURATION_SECONDS)
+        logger.info("Squelch Recorder initialized - directory: %s (RMS threshold: %.4f, min duration: %ds, dwell: %.1fs)", 
+                     self.recordings_dir, AUDIO_RMS_THRESHOLD, MIN_DURATION_SECONDS, FREQ_DWELL_SECONDS)
     
     def _float32_to_int16(self, float_bytes: bytes) -> bytes:
         """Convert raw FLOAT32 PCM bytes to INT16 PCM bytes"""
@@ -236,10 +241,37 @@ class SquelchRecorder:
                     logger.info("Silence detected for %.1fs - stopping recording", elapsed)
                     self._stop_recording()
     
+    def _has_frequency_changed(self, frequency_hz: Optional[int]) -> bool:
+        """Check if frequency changed compared to last seen value.
+        Also updates the dwell-time tracker."""
+        now = time.time()
+        
+        if frequency_hz is None:
+            return False
+        
+        if self._last_seen_freq is None or self._last_seen_freq != frequency_hz:
+            # Frequency changed — reset dwell timer
+            old_freq = self._last_seen_freq
+            self._last_seen_freq = frequency_hz
+            self._freq_stable_since = now
+            if old_freq is not None:
+                logger.info("Frequency changed: %.4f → %.4f MHz",
+                            old_freq / 1e6, frequency_hz / 1e6)
+            return old_freq is not None  # True only if there was a previous freq
+        
+        return False
+    
+    def _frequency_dwelled(self) -> bool:
+        """Return True if frequency has been stable for at least FREQ_DWELL_SECONDS."""
+        if self._freq_stable_since is None:
+            return False
+        return (time.time() - self._freq_stable_since) >= FREQ_DWELL_SECONDS
+    
     def write_audio_chunk(self, audio_data: bytes, frequency_hz: Optional[int] = None):
         """
         Write audio chunk - receives FLOAT32 PCM data from the DSP chain.
         Converts to INT16, analyzes RMS, records when signal above threshold.
+        Handles frequency changes: stops current recording, waits dwell time before new one.
         """
         if len(audio_data) < 4:
             return
@@ -249,6 +281,18 @@ class SquelchRecorder:
         has_signal = rms > AUDIO_RMS_THRESHOLD
         
         with self._lock:
+            # --- Frequency change detection ---
+            freq_changed = self._has_frequency_changed(frequency_hz)
+            
+            if freq_changed and self.is_recording:
+                logger.info("Frequency changed while recording — stopping current recording")
+                self._stop_recording()
+            
+            # --- Dwell time gate ---
+            if not self._frequency_dwelled():
+                # Not yet stable on this frequency — don't start recording
+                return
+            
             if has_signal:
                 if not self.is_recording:
                     self._start_recording(frequency_hz)
