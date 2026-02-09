@@ -118,9 +118,8 @@ class AprsSymbolsController(AssetsController):
 class CompiledAssetsController(GzipMixin, ModificationAwareController):
     profiles = {
         "receiver.js": [
-            "lib/chroma.min.js",
-            "openwebrx.js",
             "lib/jquery-3.2.1.min.js",
+            "lib/chroma.min.js",
             "lib/jquery.nanoscroller.min.js",
             "lib/lame.min.js",
             "lib/Header.js",
@@ -134,6 +133,7 @@ class CompiledAssetsController(GzipMixin, ModificationAwareController):
             "lib/Measurement.js",
             "lib/FrequencyDisplay.js",
             "lib/MessagePanel.js",
+            "openwebrx.js",
             "lib/Js8Threads.js",
             "lib/Modes.js",
             "lib/MetaPanel.js",
