@@ -1007,6 +1007,28 @@ function on_ws_recv(evt) {
                         smeter_level = json['value'];
                         setSmeterAbsoluteValue(smeter_level);
                         break;
+                    case "recording_status":
+                        var recEl = document.getElementById('rec-indicator');
+                        if (recEl) {
+                            var val = json['value'];
+                            if (val && val.recording) {
+                                recEl.classList.add('active');
+                                var freqEl = recEl.querySelector('.rec-freq');
+                                var timeEl = recEl.querySelector('.rec-time');
+                                if (freqEl && val.frequency_hz) {
+                                    freqEl.textContent = (val.frequency_hz / 1000000).toFixed(4) + ' MHz';
+                                }
+                                if (timeEl && val.duration !== undefined) {
+                                    var d = Math.floor(val.duration);
+                                    var m = Math.floor(d / 60);
+                                    var s = d % 60;
+                                    timeEl.textContent = (m > 0 ? m + 'm ' : '') + s + 's';
+                                }
+                            } else {
+                                recEl.classList.remove('active');
+                            }
+                        }
+                        break;
                     case "cpuusage":
                         $('#openwebrx-bar-server-cpu').progressbar().setUsage(json['value']);
                         break;

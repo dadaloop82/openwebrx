@@ -42,7 +42,47 @@
         <meta name="theme-color" content="#222" />
         <script src="static/plugins.js"></script>
     </head>
-    <body onload="openwebrx_init();">
+    <style>
+#rec-indicator {
+    position: fixed;
+    top: 8px;
+    right: 12px;
+    z-index: 10000;
+    display: none;
+    align-items: center;
+    gap: 6px;
+    background: rgba(0,0,0,0.75);
+    border: 2px solid #ff0000;
+    border-radius: 6px;
+    padding: 4px 12px;
+    font-family: monospace;
+    font-size: 14px;
+    font-weight: bold;
+    color: #ff3333;
+    pointer-events: none;
+}
+#rec-indicator.active { display: flex; }
+#rec-indicator .rec-dot {
+    width: 12px; height: 12px;
+    background: #ff0000;
+    border-radius: 50%;
+    animation: rec-blink 1s ease-in-out infinite;
+}
+@keyframes rec-blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.15; }
+}
+#rec-indicator .rec-text { letter-spacing: 2px; }
+#rec-indicator .rec-freq { color: #ffd700; font-size: 11px; }
+#rec-indicator .rec-time { color: #aaa; font-size: 11px; }
+</style>
+<div id="rec-indicator">
+    <span class="rec-dot"></span>
+    <span class="rec-text">REC</span>
+    <span class="rec-freq"></span>
+    <span class="rec-time"></span>
+</div>
+<body onload="openwebrx_init();">
 
 <div id="webrx-page-container">
     ${header}

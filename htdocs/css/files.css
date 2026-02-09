@@ -1,55 +1,103 @@
 @import url("openwebrx-header.css");
 @import url("openwebrx-globals.css");
 
-html, body {
-    height: unset;
-}
+html,body{height:unset}
+body{margin-bottom:.5rem;background:#1a1a2e;color:#e0e0e0}
 
-body {
-    margin-bottom: 5rem;
-}
+/* Collapse the big header on the files page */
+.webrx-top-container{padding:0!important;margin:0!important}
+.openwebrx-description-container,
+.openwebrx-rx-details-arrow,
+.webrx-rx-photo-title,.webrx-rx-photo-desc,
+.openwebrx-photo-trigger img.webrx-rx-avatar{display:none!important}
+.webrx-top-bar{padding:2px 8px!important;min-height:0!important}
+.webrx-top-bar .webrx-rx-texts h1{font-size:.85rem!important;margin:0!important}
+.webrx-top-bar .webrx-rx-texts .webrx-rx-desc{font-size:.65rem!important;margin:0!important}
+.webrx-top-bar .webrx-top-logo{height:18px!important}
+.openwebrx-main-buttons{gap:2px!important}
+.openwebrx-main-buttons .button{font-size:.6rem!important;padding:2px 4px!important}
+.openwebrx-main-buttons .button svg{width:14px!important;height:14px!important}
 
-hr {
-    background: #444;
-}
+.files-container{max-width:980px;margin:0 auto;padding:4px 8px}
+.files-heading{text-align:center;margin:4px 0;font-size:1rem;color:#00d4ff}
+.files-list{display:flex;flex-direction:column;gap:3px}
+.files-empty{text-align:center;color:#888;margin-top:2rem;font-size:1rem}
 
-h1 {
-    margin: 1em 0;
-    text-align: center;
+/* Groups */
+.file-group{margin-bottom:1px}
+.group-header{
+    background:#0f1b38;border:1px solid #0f3460;border-radius:4px;
+    padding:3px 8px;cursor:pointer;font-size:.78rem;color:#aac;
+    display:flex;align-items:center;gap:5px;user-select:none;
 }
+.group-header:hover{background:#162450}
+.group-arrow{font-size:.6rem;transition:transform .15s;display:inline-block}
+.group-header.collapsed .group-arrow{transform:rotate(-90deg)}
+.group-count{color:#666;font-size:.68rem}
+.group-body{display:flex;flex-direction:column;gap:2px;padding:2px 0 2px 6px}
 
-table {
-  border-collapse: separate;
-  border-spacing: 15px;
+/* Card - ultra compact */
+.file-card{
+    background:#16213e;border:1px solid #0f3460;border-radius:4px;
+    padding:3px 6px;
 }
+.file-card:hover{background:#1a2a50}
 
-td {
-    text-align: center;
-    border: 3px dotted;
+/* Top row */
+.card-top{
+    display:flex;align-items:center;gap:4px;
+    font-size:.75rem;line-height:1.2;
+    overflow:hidden;white-space:nowrap;
 }
-
-img {
-    width: 100%;
+.file-icon{flex-shrink:0;font-size:.85rem}
+.file-name{
+    color:#00d4ff;font-weight:600;
+    overflow:hidden;text-overflow:ellipsis;
+    max-width:200px;flex-shrink:1;font-size:.72rem;
 }
-
-.file-title {
-    text-align: center;
-    font-size: 80%;
+.file-meta{
+    display:flex;gap:5px;align-items:center;
+    font-size:.68rem;color:#777;white-space:nowrap;flex:1;min-width:0;
 }
-
-.file-size {
-    font-size: 80%;
-    position: absolute;
-    top: 10px;
-    left: 10px;
+.file-meta .freq{color:#ffd700;font-weight:600}
+.file-meta .mode-tag{background:#533483;color:#fff;padding:0 3px;border-radius:2px;font-size:.62rem}
+.file-meta .dur{color:#6fc}
+.file-actions{
+    flex-shrink:0;display:flex;gap:2px;align-items:center;margin-left:auto;
 }
-
-.file-tile {
-    width: 32%;
-    position: relative;
+.file-actions .btn{
+    font-size:.65rem;padding:0 5px;border-radius:2px;
+    line-height:1.5;cursor:pointer;
 }
+.btn-dl{color:#00d4ff;border:1px solid #0af;text-decoration:none}
+.btn-dl:hover{background:#0af;color:#000}
+.btn-del{color:#f44;border:1px solid #f44;background:none}
+.btn-del:hover{background:#f44;color:#fff}
 
-.file-delete {
-    position: relative;
-    bottom : 5px;
+/* Player row */
+.card-player{display:flex;align-items:center;gap:4px;margin-top:2px}
+
+/* Viz: spectrogram + waveform stacked */
+.viz-wrap{
+    flex:1;position:relative;display:flex;flex-direction:column;
+    border-radius:2px;overflow:hidden;cursor:pointer;background:#060a14;
+}
+.spectrogram-canvas{display:block;width:100%;height:18px}
+.waveform-canvas{display:block;width:100%;height:16px}
+.waveform-overlay{
+    position:absolute;top:0;left:0;width:0%;height:100%;
+    background:rgba(0,212,255,.12);pointer-events:none;
+    transition:width .06s linear;
+}
+.card-player audio{height:26px;width:120px;flex-shrink:0}
+
+/* Image */
+.file-img-preview{width:50px;height:36px;object-fit:cover;border-radius:2px;border:1px solid #333}
+.file-card.is-image .card-player{display:none}
+
+@media(max-width:640px){
+    .card-top{flex-wrap:wrap}
+    .file-name{max-width:100%}
+    .card-player{flex-wrap:wrap}
+    .card-player audio{width:100%}
 }

@@ -1,5 +1,47 @@
-OpenWebRX+
+OpenWebRX+ · Dadaloop82 Fork
 =========
+
+> **Fork by [dadaloop82](https://github.com/dadaloop82)** — Powered by Dadaloop82 🎧
+
+This fork adds automatic signal recording, a files browser with audio visualization, and UI enhancements on top of the excellent [OpenWebRX+](https://github.com/luarvique/openwebrx) by luarvique.
+
+## 🆕 Features added in this fork
+
+### 🎙️ Automatic Squelch Recorder
+- **RMS-based signal detection** — automatically records when audio signal exceeds a configurable threshold (default: 0.015 RMS on float PCM)
+- **FLOAT32 → INT16 conversion** — correctly captures the DSP chain's pre-compression audio buffer at native quality
+- **MP3 output** via ffmpeg with VBR encoding (`-qscale:a 2`)
+- **Smart duration filtering** — checks actual WAV content duration (not wall-clock time) and discards recordings shorter than 3 seconds
+- **Auto-silence detection** — stops recording after 3 seconds of silence
+- **7-day auto-cleanup** of old recordings
+- **Filename convention**: `{freq}MHz_{date}_{time}.mp3` (e.g. `118.7000MHz_20260209_173247.mp3`)
+
+### 📁 Files Browser (`/files`)
+- **Grouped by day and hour** — collapsible sections like `📁 09/02/2026 - Ore 18:00 (5)`
+- **Sorted newest first** within each group
+- **Spectrogram visualization** — real-time FFT spectrogram (Cooley-Tukey radix-2, Hann window, 256 bins) rendered on canvas for each recording
+- **Waveform visualization** — amplitude waveform with blue→cyan→yellow color gradient
+- **Click-to-seek** — click anywhere on the spectrogram/waveform to jump to that position
+- **Playback position overlay** — semi-transparent highlight follows audio playback
+- **Accurate duration** — uses `ffprobe` for server-side duration + browser `loadedmetadata` for real-time update
+- **Audio preloading** — `preload="metadata"` so the player shows duration immediately
+- **Download & Delete buttons** — always visible on every card
+- **Compact dark-theme cards** — minimal footprint with inline metadata (frequency, time, duration, file size)
+- **Empty state** handling with friendly message
+
+### 🔴 REC Indicator
+- **Blinking REC badge** in the main receiver UI when a recording is active
+- **WebSocket status broadcast** — recorder pushes status to all connected clients via `ClientRegistry`
+
+### 🎨 UI Enhancements
+- **Custom branding** — "Powered by Dadaloop82" header persists (Header.js patched to not overwrite)
+- **Dark-themed files page** — consistent with the main OpenWebRX+ aesthetic
+- **Mobile-responsive** file cards with flex-wrap
+
+---
+
+## Original OpenWebRX+ Features
+
 
 This is the **improved version** of the OpenWebRX online SDR. The pre-built OpenWebRX+ packages are available from the [package repository](https://luarvique.github.io/ppa/). Pre-built disk images are available from the [Releases page](https://github.com/luarvique/openwebrx/releases). OpenWebRX+ [documentation](https://fms.komkon.org/OWRX/) draft is now available. News, support, and general discussion can be found in the [Telegram channel](https://t.me/openwebrx) and related [chat](https://t.me/openwebrx_chat). Features found in OpenWebRX+ that are not present in the original version:
 * AIS, SSTV, FAX, FLEX, POCSAG, HFDL, VDL2, ADSB, ACARS, ISM, RDS, SAM, SITOR-B, RTTY, and CW decoders.

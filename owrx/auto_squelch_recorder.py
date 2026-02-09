@@ -1,24 +1,27 @@
 """
 Automatic Audio Recorder with Squelch Detection
-Records MP3 files when audio present, auto-closes on silence
+Records MP3 files when audio signal detected, auto-closes on silence
+Taps into the pre-compression audio buffer (PCM FLOAT32) from the DSP chain
 """
 
 import os
 import time
 import threading
 import wave
+import struct
 import subprocess
 import logging
+import array
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
-from owrx.recording_notifier import get_notifier
 
 RECORDINGS_DIR = "/var/lib/openwebrx/recordings"
-MIN_DURATION_SECONDS = 5
+MIN_DURATION_SECONDS = 3
 MAX_AGE_DAYS = 7
 CLEANUP_INTERVAL = 300
 SILENCE_TIMEOUT = 3.0
+AUDIO_RMS_THRESHOLD = 0.015  # Float threshold (range -1.0 to 1.0)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -28,7 +31,7 @@ logger = logging.getLogger(__name__)
 
 
 class SquelchRecorder:
-    """Audio recorder triggered by audio presence"""
+    """Audio recorder triggered by audio signal level detection"""
     
     _instance = None
     _lock = threading.Lock()
@@ -54,15 +57,58 @@ class SquelchRecorder:
         self.current_filepath = None
         self.current_frequency_hz = None
         self.is_recording = False
-        self.last_audio_time = None
+        self.last_signal_time = None
         self.silence_timer = None
+        self.chunk_count = 0
         
         self.cleanup_thread = threading.Thread(target=self._cleanup_worker, daemon=True)
         self.cleanup_thread.start()
         
+        self._status_thread = threading.Thread(target=self._status_broadcaster, daemon=True)
+        self._status_thread.start()
+        
+        # Clean orphan temp WAV files from previous runs
+        try:
+            import glob
+            for f in glob.glob(os.path.join(self.recordings_dir, "temp_*.wav")):
+                os.remove(f)
+                logger.info("Cleaned orphan temp file: %s", os.path.basename(f))
+        except Exception as e:
+            logger.warning("Error cleaning temp files: %s", e)
+        
         self._initialized = True
         
-        logger.info("🎙️  Squelch Recorder initialized - directory: %s", self.recordings_dir)
+        logger.info("Squelch Recorder initialized - directory: %s (RMS threshold: %.4f, min duration: %ds)", 
+                     self.recordings_dir, AUDIO_RMS_THRESHOLD, MIN_DURATION_SECONDS)
+    
+    def _float32_to_int16(self, float_bytes: bytes) -> bytes:
+        """Convert raw FLOAT32 PCM bytes to INT16 PCM bytes"""
+        # Each float32 sample = 4 bytes, each int16 sample = 2 bytes
+        num_floats = len(float_bytes) // 4
+        if num_floats == 0:
+            return b''
+        # Unpack as float32
+        floats = struct.unpack('<%df' % num_floats, float_bytes[:num_floats * 4])
+        # Convert to int16 with clipping
+        int16_samples = []
+        for f in floats:
+            # Clamp to -1.0 .. 1.0 then scale to int16 range
+            clamped = max(-1.0, min(1.0, f))
+            int16_samples.append(int(clamped * 32767))
+        # Pack as int16
+        return struct.pack('<%dh' % len(int16_samples), *int16_samples)
+    
+    def _compute_rms_float(self, float_bytes: bytes) -> float:
+        """Compute RMS level of FLOAT32 PCM audio data (values in -1.0 to 1.0 range)"""
+        try:
+            num_floats = len(float_bytes) // 4
+            if num_floats == 0:
+                return 0.0
+            floats = struct.unpack('<%df' % num_floats, float_bytes[:num_floats * 4])
+            sum_sq = sum(f * f for f in floats)
+            return (sum_sq / num_floats) ** 0.5
+        except Exception:
+            return 0.0
     
     def _start_recording(self, frequency_hz: Optional[int] = None):
         """Start a new recording"""
@@ -78,33 +124,30 @@ class SquelchRecorder:
         self.current_wav_path = self.recordings_dir / f"temp_{timestamp}.wav"
         self.current_frequency_hz = frequency_hz
         self.recording_start_time = time.time()
-        self.last_audio_time = time.time()
+        self.last_signal_time = time.time()
         self.is_recording = True
+        self.chunk_count = 0
         
-        # Create temporary WAV file
+        # Create temporary WAV file (12000 Hz, mono, 16-bit)
         self.current_wavfile = wave.open(str(self.current_wav_path), 'wb')
         self.current_wavfile.setnchannels(1)
-        self.current_wavfile.setsampwidth(2)
+        self.current_wavfile.setsampwidth(2)  # 16-bit int16
         self.current_wavfile.setframerate(12000)
         
-        logger.info("📼 Recording started: %s", filename)
-        
-        try:
-            notifier = get_notifier()
-            notifier.notify_recording_start(self.current_frequency_hz)
-        except:
-            pass
+        logger.info("Recording started: %s (freq: %s)", 
+                     filename, f"{frequency_hz/1e6:.4f} MHz" if frequency_hz else "unknown")
     
     def _stop_recording(self):
         """Stop current recording and convert to MP3"""
         if not self.is_recording:
             return
             
+        self._cancel_silence_timer()
+        
         duration = time.time() - self.recording_start_time
         filepath = self.current_filepath
         wav_path = self.current_wav_path
         
-        # Close WAV file
         try:
             if self.current_wavfile:
                 self.current_wavfile.close()
@@ -116,25 +159,31 @@ class SquelchRecorder:
         self.current_filepath = None
         self.current_wav_path = None
         
+        # Check actual audio duration from WAV file size (more accurate than wall-clock)
+        actual_duration = 0
         try:
-            notifier = get_notifier()
-            notifier.notify_recording_stop()
-        except:
-            pass
+            if wav_path and wav_path.exists():
+                wav_size = wav_path.stat().st_size
+                actual_duration = max(0, (wav_size - 44)) / 24000.0  # 12kHz * 16bit * mono
+        except Exception:
+            actual_duration = duration  # fallback to wall-clock
         
-        logger.info("📼 Recording stopped: %s (%.1fs)", filepath.name if filepath else "?", duration)
+        logger.info("Recording stopped: %s (wall=%.1fs, audio=%.1fs, %d chunks)", 
+                     filepath.name if filepath else "?", duration, actual_duration, self.chunk_count)
         
-        # Check duration
-        if duration < MIN_DURATION_SECONDS:
+        if actual_duration < MIN_DURATION_SECONDS:
             try:
                 if wav_path and wav_path.exists():
                     wav_path.unlink()
-                    logger.info("🗑️  Deleted short recording (%.1fs < %ds)", duration, MIN_DURATION_SECONDS)
+                    logger.info("Deleted short recording (%.1fs < %ds)", duration, MIN_DURATION_SECONDS)
             except Exception as e:
                 logger.error("Error deleting short recording: %s", e)
         else:
-            # Convert WAV to MP3
-            self._convert_to_mp3(wav_path, filepath)
+            threading.Thread(
+                target=self._convert_to_mp3,
+                args=(wav_path, filepath),
+                daemon=True
+            ).start()
     
     def _convert_to_mp3(self, wav_path: Path, mp3_path: Path):
         """Convert WAV to MP3 using ffmpeg"""
@@ -143,7 +192,6 @@ class SquelchRecorder:
                 logger.error("WAV file not found: %s", wav_path)
                 return
             
-            # Use ffmpeg to convert with good quality
             cmd = [
                 'ffmpeg', '-y', '-i', str(wav_path),
                 '-codec:a', 'libmp3lame', '-qscale:a', '2',
@@ -158,12 +206,11 @@ class SquelchRecorder:
             )
             
             if result.returncode == 0 and mp3_path.exists():
-                logger.info("✅ Converted to MP3: %s", mp3_path.name)
-                # Delete temporary WAV
+                size_kb = mp3_path.stat().st_size / 1024
+                logger.info("Converted to MP3: %s (%.1f KB)", mp3_path.name, size_kb)
                 wav_path.unlink()
             else:
                 logger.error("ffmpeg conversion failed (code %d)", result.returncode)
-                # Keep WAV if conversion failed
                 
         except subprocess.TimeoutExpired:
             logger.error("ffmpeg timeout converting %s", wav_path)
@@ -171,45 +218,64 @@ class SquelchRecorder:
             logger.error("Error converting to MP3: %s", e)
     
     def _cancel_silence_timer(self):
-        """Cancel pending silence timeout"""
         if self.silence_timer:
             self.silence_timer.cancel()
             self.silence_timer = None
     
     def _schedule_silence_timeout(self):
-        """Schedule auto-close on silence"""
         self._cancel_silence_timer()
         self.silence_timer = threading.Timer(SILENCE_TIMEOUT, self._on_silence_timeout)
+        self.silence_timer.daemon = True
         self.silence_timer.start()
     
     def _on_silence_timeout(self):
-        """Called when silence timeout expires"""
         with self._lock:
-            current_silence_duration = time.time() - self.last_audio_time
-            if current_silence_duration >= SILENCE_TIMEOUT:
-                self._stop_recording()
+            if self.is_recording and self.last_signal_time:
+                elapsed = time.time() - self.last_signal_time
+                if elapsed >= SILENCE_TIMEOUT:
+                    logger.info("Silence detected for %.1fs - stopping recording", elapsed)
+                    self._stop_recording()
     
     def write_audio_chunk(self, audio_data: bytes, frequency_hz: Optional[int] = None):
-        """Write audio chunk - starts/continues recording"""
-        if len(audio_data) == 0:
+        """
+        Write audio chunk - receives FLOAT32 PCM data from the DSP chain.
+        Converts to INT16, analyzes RMS, records when signal above threshold.
+        """
+        if len(audio_data) < 4:
             return
         
+        # Compute RMS on float data
+        rms = self._compute_rms_float(audio_data)
+        has_signal = rms > AUDIO_RMS_THRESHOLD
+        
         with self._lock:
-            if not self.is_recording:
-                self._start_recording(frequency_hz)
-            
-            self.last_audio_time = time.time()
-            
-            try:
-                if self.current_wavfile:
-                    self.current_wavfile.writeframes(audio_data)
-            except Exception as e:
-                logger.error("Error writing audio chunk: %s", e)
-            
-            self._schedule_silence_timeout()
+            if has_signal:
+                if not self.is_recording:
+                    self._start_recording(frequency_hz)
+                
+                self.last_signal_time = time.time()
+                self.chunk_count += 1
+                
+                # Convert float32 to int16 and write to WAV
+                try:
+                    if self.current_wavfile:
+                        int16_data = self._float32_to_int16(audio_data)
+                        self.current_wavfile.writeframes(int16_data)
+                except Exception as e:
+                    logger.error("Error writing audio chunk: %s", e)
+                
+                self._schedule_silence_timeout()
+                
+            elif self.is_recording:
+                self.chunk_count += 1
+                try:
+                    if self.current_wavfile:
+                        int16_data = self._float32_to_int16(audio_data)
+                        self.current_wavfile.writeframes(int16_data)
+                except Exception as e:
+                    logger.error("Error writing audio chunk: %s", e)
     
     def get_status(self) -> dict:
-        """Get current recording status"""
         if self.is_recording:
             duration = time.time() - self.recording_start_time
             return {
@@ -220,17 +286,33 @@ class SquelchRecorder:
             }
         return {'recording': False}
     
+    def _status_broadcaster(self):
+        import time as _time
+        while True:
+            try:
+                _time.sleep(1.0)
+                status = self.get_status()
+                try:
+                    from owrx.client import ClientRegistry
+                    registry = ClientRegistry.getSharedInstance()
+                    for client in list(registry.clients):
+                        try:
+                            if hasattr(client, 'write_recording_status'):
+                                client.write_recording_status(status)
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
+            except Exception:
+                pass
+
     def _cleanup_worker(self):
-        """Background thread to cleanup old recordings"""
-        logger.info("🧹 Cleanup worker started (max age: %d days)", MAX_AGE_DAYS)
-        
+        logger.info("Cleanup worker started (max age: %d days)", MAX_AGE_DAYS)
         while True:
             try:
                 time.sleep(CLEANUP_INTERVAL)
-                
                 cutoff_time = time.time() - (MAX_AGE_DAYS * 86400)
                 deleted_count = 0
-                
                 for filepath in self.recordings_dir.glob("*.mp3"):
                     try:
                         if filepath.stat().st_mtime < cutoff_time:
@@ -238,28 +320,22 @@ class SquelchRecorder:
                             deleted_count += 1
                     except Exception as e:
                         logger.error("Error deleting %s: %s", filepath.name, e)
-                
-                # Cleanup temp WAV files
                 for filepath in self.recordings_dir.glob("temp_*.wav"):
                     try:
-                        if filepath.stat().st_mtime < time.time() - 3600:  # Older than 1 hour
+                        if filepath.stat().st_mtime < time.time() - 3600:
                             filepath.unlink()
                             deleted_count += 1
                     except Exception as e:
                         logger.error("Error deleting temp %s: %s", filepath.name, e)
-                
                 if deleted_count > 0:
-                    logger.info("🧹 Cleanup: deleted %d old files", deleted_count)
-                    
+                    logger.info("Cleanup: deleted %d old files", deleted_count)
             except Exception as e:
                 logger.error("Cleanup worker error: %s", e)
 
 
 _recorder_instance = None
 
-
 def get_recorder() -> SquelchRecorder:
-    """Get singleton recorder instance"""
     global _recorder_instance
     if _recorder_instance is None:
         _recorder_instance = SquelchRecorder()

@@ -2,7 +2,6 @@ function Header(el) {
     this.el = el;
 
     var $buttons = this.el.find('.openwebrx-main-buttons').find('[data-toggle-panel]').filter(function(){
-        // ignore buttons when the corresponding panel is not in the DOM
         return $('#' + $(this).data('toggle-panel'))[0];
     });
 
@@ -14,16 +13,23 @@ function Header(el) {
 };
 
 Header.prototype.setDetails = function(details) {
-    // Set receiver name
+    // Keep custom title "Powered by Dadaloop82" - don't overwrite
     var title = this.el.find('.webrx-rx-title');
-    title.html(details['receiver_name']);
+    var currentTitle = title.text().trim();
+    if (currentTitle === '' || (currentTitle.indexOf('Powered by') === -1 && currentTitle.indexOf('Dadaloop') === -1)) {
+        title.html(details['receiver_name']);
+    }
 
-    // If receiver name has readable text, use it for window title
     var titleText = title.prop('textContent');
     if (titleText.length>0) document.title = 'OpenWebRX+ | ' + titleText;
 
-    // Set the rest of details
-    this.el.find('.webrx-rx-desc').html(details['receiver_location'] + ' | Loc: ' + details['locator'] + ', ASL: ' + details['receiver_asl'] + ' m');
+    // Keep custom description too
+    var desc = this.el.find('.webrx-rx-desc');
+    var currentDesc = desc.text().trim();
+    if (currentDesc === '' || (currentDesc.indexOf('Custom Edition') === -1 && currentDesc.indexOf('Recording') === -1)) {
+        desc.html(details['receiver_location'] + ' | Loc: ' + details['locator'] + ', ASL: ' + details['receiver_asl'] + ' m');
+    }
+
     this.el.find('.webrx-rx-photo-title').html(details['photo_title']);
     this.el.find('.webrx-rx-photo-desc').html(details['photo_desc']);
 };
