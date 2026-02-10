@@ -223,3 +223,119 @@ Inspired by most-requested features from the OpenWebRX community.
 ## 📄 License
 
 Same as OpenWebRX - GNU Affero General Public License v3.0
+
+---
+
+## 🤖 AUTO MODE - Sistema Autonomo
+
+**Data Implementazione**: 10 Febbraio 2026  
+**Commit**: aa09ff18, 4a476e07
+
+Sistema completo di registrazione automatica e decodifica che si attiva quando **nessun client remoto è connesso**.
+
+### 🎯 Caratteristiche
+
+- ✅ **Attivazione automatica** quando nessun client remoto connesso
+- ✅ **Distingue client locali** (stesso IP/LAN) da remoti  
+- ✅ **Scan ciclico** su frequenze configurabili
+- ✅ **Registrazione audio** automatica durante scan
+- ✅ **Decodifica digitale** (DMR/YSF/APRS/FT8/ADS-B/POCSAG/etc)
+- ✅ **Salvataggio completo** audio + decodifiche in Files tab
+- ✅ **Stato web** disponibile su http://IP:8080/auto-mode-status.json
+- ✅ **Ripristino immediato** controllo utente su connessione remota
+
+### 📦 Componenti
+
+1. **ClientMonitor** - Monitora connessioni WebSocket (local vs remote)
+2. **AutoTuner** - Controlla frequenza/modo/squelch del ricevitore
+3. **DecoderManager** - Gestisce tutti i decoder digitali  
+4. **AutoModeOrchestrator** - Coordinatore generale (state machine)
+5. **AutoModeInit** - Inizializzazione e API di sistema
+6. **StatusExporter** - Servizio background per export JSON
+
+### ⚙️ Configurazione
+
+File: `/var/lib/openwebrx/auto_mode_config.json`
+
+```json
+{
+  "orchestrator": {
+    "enabled": true,
+    "frequencies": [
+      {
+        "frequency": 145800000,
+        "mode": "NFM",
+        "squelch": 0.15,
+        "bandwidth": 12500,
+        "dwell_time": 120,
+        "label": "APRS 2m 145.800 MHz"
+      }
+    ],
+    "cycle_mode": "sequential",
+    "enable_recording": true,
+    "enable_decoders": true
+  }
+}
+```
+
+### 📊 Output
+
+- **Audio**: `/var/lib/openwebrx/recordings/recording_*.mp3`
+- **Decodifiche**: `/var/lib/openwebrx/auto_mode_decodings/SESSION_ID/`
+  - `session.json` - Metadati sessione
+  - `decodings.json` - Tutte le decodifiche (JSON)
+  - `decodings.csv` - Tutte le decodifiche (CSV)
+  - `statistics.json` - Statistiche finali
+
+### 🌐 API Web
+
+**Endpoint**: `http://IP:8080/auto-mode-status.json`
+
+**Formato**:
+```json
+{
+  "initialized": true,
+  "client_monitor": {
+    "has_remote_clients": false,
+    "auto_mode_allowed": true,
+    "clients": {"total": 0, "local": 0, "remote": 0}
+  },
+  "orchestrator": {
+    "state": "auto",
+    "current_frequency": {
+      "frequency": 145800000,
+      "mode": "NFM",
+      "label": "APRS 2m"
+    },
+    "total_frequencies": 7
+  },
+  "decoder_manager": {
+    "is_recording": true,
+    "total_decodings": 42
+  }
+}
+```
+
+**Aggiornamento**: Ogni 5 secondi via `auto-mode-exporter.service`
+
+### 🔧 Servizi Systemd
+
+1. **openwebrx.service** - Server principale (inizializza auto-mode)
+2. **auto-mode-exporter.service** - Export JSON status per web
+
+### 📖 Documentazione Completa
+
+Vedi: [AUTO_MODE_README.md](AUTO_MODE_README.md)
+
+---
+
+## 📈 Statistiche Totali
+
+- **Features Implementate**: 4
+- **Nuovi Moduli Python**: 8
+- **Righe Codice Aggiunte**: ~2800
+- **File Modificati**: 3  
+- **Servizi Systemd**: 2
+- **Endpoint API**: 1
+- **Formati Output**: JSON, CSV, MP3
+
