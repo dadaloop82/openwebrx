@@ -24,6 +24,7 @@ from owrx.reporting import ReportingEngine
 from owrx.markers import Markers
 from owrx.gps import GpsUpdater
 from owrx.wifi import WiFi
+from owrx.auto_mode_init import init_auto_mode_system, shutdown_auto_mode_system
 from datetime import datetime
 from pathlib import Path
 import signal
@@ -155,10 +156,16 @@ Support and info:       https://groups.io/g/openwebrx
     SdrService.getAllSources()
 
     Services.start()
-
+    
+    # Initialize auto-mode system
+    try:
+        init_auto_mode_system()
+        logger.info("Auto-mode system initialized successfully")
+    except Exception as e:
+        logger.warning("Failed to initialize auto-mode system: %s", e)
+    
     # Instantiate and start GPS location updater
     GpsUpdater.init()
-
     # Instantiate and refresh marker database
     Markers.start()
 
@@ -191,6 +198,12 @@ Support and info:       https://groups.io/g/openwebrx
     WebSocketConnection.closeAll()
     Markers.stop()
     GpsUpdater.stop()
+    # Shutdown auto-mode system
+    try:
+        shutdown_auto_mode_system()
+    except:
+        pass
+
     Services.stop()
     SdrService.stopAllSources()
     DecoderQueue.stopAll()
