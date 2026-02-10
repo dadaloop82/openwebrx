@@ -25,6 +25,7 @@ from owrx.controllers.settings.bookmarks import BookmarksController
 from owrx.controllers.session import SessionController
 from owrx.controllers.profile import ProfileController
 from owrx.controllers.imageupload import ImageUploadController
+from owrx.controllers.auto_mode import AutoModeStatusController
 from owrx.controllers.robots import RobotsController
 from owrx.storage import Storage
 from http.server import BaseHTTPRequestHandler
@@ -187,6 +188,7 @@ class Router(object):
             StaticRoute("/policy", PolicyController),
             StaticRoute("/clients", ClientController),
             StaticRoute("/services", ServiceController),
+            StaticRoute("/api/auto-mode/status", AutoModeStatusController),
             StaticRoute("/ban", ClientController, method="POST", options={"action": "ban"}),
             StaticRoute("/unban", ClientController, method="POST", options={"action": "unban"}),
             StaticRoute("/broadcast", ClientController, method="POST", options={"action": "broadcast"}),
