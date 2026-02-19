@@ -476,6 +476,15 @@
             </div>
             <div id="gemini-freq-info" style="background:rgba(255,255,255,0.05); padding:10px; border-radius:8px; margin-bottom:15px; font-family:monospace; font-size:0.9em;"></div>
             <div id="gemini-result" style="white-space:pre-wrap; line-height:1.6; font-size:0.9em;"></div>
+            <div id="gemini-bookmark-bar" style="display:none; margin-top:15px; padding:12px; background:rgba(76,175,80,0.1); border:1px solid rgba(76,175,80,0.3); border-radius:8px; text-align:center;">
+                <span style="color:#aaa; font-size:0.85em;">Suggerimento AI: </span>
+                <span id="gemini-bookmark-label" style="color:#4CAF50; font-weight:bold;"></span>
+                <button id="gemini-bookmark-btn" onclick="SdrTools._saveBookmark();"
+                    style="margin-left:12px; padding:6px 16px; background:#4CAF50; color:#fff; border:none; border-radius:6px; cursor:pointer; font-size:0.9em; transition:all 0.2s;">
+                    📌 Salva Bookmark
+                </button>
+                <span id="gemini-bookmark-status" style="margin-left:8px; font-size:0.85em;"></span>
+            </div>
         </div>
     </div>
     <!-- SDR Tools JS -->
@@ -497,6 +506,7 @@
     </style>
     <script>
     var SdrTools = {
+        _pendingBookmark: null,
         _getFreqInfo: function() {
             // Use the official OpenWebRX UI API
             try {
@@ -649,6 +659,27 @@
                         .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
                         .replace(/\n/g, '<br>');
                     resultEl.innerHTML = html;
+
+                    // Show bookmark bar if Gemini suggested a label
+                    var bmBar = document.getElementById('gemini-bookmark-bar');
+                    var bmLabel = document.getElementById('gemini-bookmark-label');
+                    var bmStatus = document.getElementById('gemini-bookmark-status');
+                    if (r.suggested_label && r.suggested_label.length > 0) {
+                        bmLabel.textContent = '"' + r.suggested_label + '"';
+                        bmBar.style.display = 'block';
+                        bmStatus.textContent = '';
+                        document.getElementById('gemini-bookmark-btn').disabled = false;
+                        // Store data for bookmark creation
+                        SdrTools._pendingBookmark = {
+                            name: r.suggested_label,
+                            frequency: info.frequency,
+                            modulation: info.mode,
+                            description: 'AI: ' + (r.analysis || '').substring(0, 120)
+                        };
+                    } else {
+                        bmBar.style.display = 'none';
+                    }
+
                     modal.style.display = 'flex';
                 },
                 error: function(xhr) {
@@ -657,6 +688,38 @@
                     var err = 'Errore di comunicazione';
                     try { err = JSON.parse(xhr.responseText).error; } catch(e) {}
                     alert('❌ Errore Gemini AI: ' + err);
+                }
+            });
+        },
+
+        _saveBookmark: function() {
+            var bm = this._pendingBookmark;
+            if (!bm) { alert('Nessun bookmark da salvare'); return; }
+            var btn = document.getElementById('gemini-bookmark-btn');
+            var statusSpan = document.getElementById('gemini-bookmark-status');
+            btn.disabled = true;
+            statusSpan.textContent = '⏳ Salvataggio...';
+            statusSpan.style.color = '#64B5F6';
+
+            $.ajax({
+                url: '/api/gemini/bookmark',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(bm),
+                timeout: 10000,
+                success: function(resp) {
+                    var r = typeof resp === 'string' ? JSON.parse(resp) : resp;
+                    statusSpan.textContent = '✅ Bookmark salvato!';
+                    statusSpan.style.color = '#4CAF50';
+                    btn.textContent = '✅ Salvato';
+                    btn.style.background = '#388E3C';
+                },
+                error: function(xhr) {
+                    var err = 'Errore';
+                    try { err = JSON.parse(xhr.responseText).error; } catch(e) {}
+                    statusSpan.textContent = '❌ ' + err;
+                    statusSpan.style.color = '#f44336';
+                    btn.disabled = false;
                 }
             });
         }

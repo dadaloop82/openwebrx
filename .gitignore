@@ -9,6 +9,11 @@ OpenWebRX.egg-info/
 __pycache__/
 *.egg
 
+# Environment secrets - NEVER commit
+.env
+.env.*
+!.env.example
+
 # Audio recordings
 /var/lib/openwebrx/recordings/
 *.mp3

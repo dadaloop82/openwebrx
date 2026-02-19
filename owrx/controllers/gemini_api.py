@@ -15,9 +15,13 @@ from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
-GEMINI_API_KEY = "REMOVED_USE_ENV_VAR"
-GEMINI_MODEL = "gemini-2.0-flash"
-GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent?key={GEMINI_API_KEY}"
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.0-flash")
+
+def _get_gemini_url():
+    key = GEMINI_API_KEY or os.environ.get("GEMINI_API_KEY", "")
+    model = GEMINI_MODEL or os.environ.get("GEMINI_MODEL", "gemini-2.0-flash")
+    return f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}"
 
 # Audio capture buffer (receives ADPCM-compressed audio from the main demodulated output)
 _audio_buffer = bytearray()
@@ -195,6 +199,12 @@ def _call_gemini(prompt: str, audio_wav: bytes = None) -> str:
     import urllib.request
     import urllib.error
 
+    api_key = GEMINI_API_KEY or os.environ.get("GEMINI_API_KEY", "")
+    if not api_key:
+        return "Errore: GEMINI_API_KEY non configurata. Impostare la variabile d'ambiente GEMINI_API_KEY."
+
+    gemini_url = _get_gemini_url()
+
     parts = [{"text": prompt}]
 
     if audio_wav is not None:
@@ -215,29 +225,43 @@ def _call_gemini(prompt: str, audio_wav: bytes = None) -> str:
     }
 
     data = json.dumps(payload).encode('utf-8')
-    req = urllib.request.Request(
-        GEMINI_URL,
-        data=data,
-        headers={"Content-Type": "application/json"},
-        method="POST"
-    )
 
-    try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            result = json.loads(resp.read().decode('utf-8'))
-            candidates = result.get('candidates', [])
-            if candidates:
-                content = candidates[0].get('content', {})
-                text_parts = [p.get('text', '') for p in content.get('parts', [])]
-                return '\n'.join(text_parts)
-            return "No response from Gemini"
-    except urllib.error.HTTPError as e:
-        body = e.read().decode('utf-8', errors='replace')
-        logger.error("Gemini API error %d: %s", e.code, body[:500])
-        return f"Gemini API error {e.code}: {body[:200]}"
-    except Exception as e:
-        logger.error("Gemini API call failed: %s", e)
-        return f"Error: {str(e)}"
+    max_retries = 3
+    base_delay = 2  # seconds
+    last_error = None
+
+    for attempt in range(max_retries + 1):
+        req = urllib.request.Request(
+            gemini_url,
+            data=data,
+            headers={"Content-Type": "application/json"},
+            method="POST"
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                result = json.loads(resp.read().decode('utf-8'))
+                candidates = result.get('candidates', [])
+                if candidates:
+                    content = candidates[0].get('content', {})
+                    text_parts = [p.get('text', '') for p in content.get('parts', [])]
+                    return '\n'.join(text_parts)
+                return "No response from Gemini"
+        except urllib.error.HTTPError as e:
+            body = e.read().decode('utf-8', errors='replace')
+            last_error = f"Gemini API error {e.code}: {body[:200]}"
+            if e.code == 429 and attempt < max_retries:
+                delay = base_delay * (2 ** attempt)
+                logger.warning("Gemini API rate limited (429), retry %d/%d in %ds",
+                               attempt + 1, max_retries, delay)
+                time.sleep(delay)
+                continue
+            logger.error("Gemini API error %d: %s", e.code, body[:500])
+            return last_error
+        except Exception as e:
+            logger.error("Gemini API call failed: %s", e)
+            return f"Error: {str(e)}"
+
+    return last_error or "Gemini API error: max retries exceeded"
 
 
 class GeminiAnalyzeController(Controller):
@@ -275,39 +299,49 @@ class GeminiAnalyzeController(Controller):
 
             # Build the prompt
             squelch_str = f"{squelch} dB" if squelch else "non impostato"
-            prompt = f"""Sei un esperto di radio e telecomunicazioni. Analizza questa sintonizzazione radio:
+            prompt = f"""Sei un esperto di radio e telecomunicazioni. Analizza questa sintonizzazione radio in modo CONCISO e SINTETICO.
 
 **Frequenza:** {freq_mhz:.6f} MHz ({freq_hz} Hz)
-**Modo di ricezione:** {mode.upper()}
-**Larghezza di banda:** {bandwidth} Hz
-**Livello squelch:** {squelch_str}
-**Data/Ora UTC:** {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}
+**Modo:** {mode.upper()} | **Banda:** {bandwidth} Hz | **Squelch:** {squelch_str}
+**UTC:** {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}
 {audio_info}
 
-NOTA: Il livello squelch è espresso in dB relativi al rumore di fondo del ricevitore. Valori tipici sono tra -150 dB (completamente aperto) e 0 dB. Non confonderlo con la potenza del segnale.
+IMPORTANTE: Rispondi in italiano, in modo BREVE e RIASSUNTIVO (max 10-15 righe). Niente lunghi paragrafi.
 
-Per favore rispondi in italiano e fornisci:
-1. **Identificazione**: Cosa trasmette normalmente su questa frequenza? (servizio, stazione, tipo di trasmissione)
-2. **Allocazione banda**: In quale banda radio si trova e qual è l'allocazione ufficiale per questa porzione di spettro in Regione 1 (Europa)?
-3. **Informazioni tecniche**: Che tipo di segnale/modulazione ci si aspetta? Caratteristiche del segnale.
-4. **Note pratiche**: Orari di attività tipici, propagazione attesa, consigli per l'ascolto.
+Rispondi con questo formato:
+
+**ETICHETTA_SUGGERITA:** [Suggerisci un nome breve e descrittivo per questa frequenza, da usare come bookmark. Esempio: "RAI Radio 1", "Guardia Costiera", "Banda 40m SSB", "VOLMET Milano", "PMR446 Ch1", "Aeronautica 124.5". Deve essere conciso (max 5-6 parole)]
+
+**Identificazione:** Cosa trasmette su questa frequenza? (1-2 frasi)
+**Banda/Allocazione:** Banda e allocazione Regione 1 (1 frase)
+**Segnale:** Tipo di modulazione/segnale atteso (1 frase)
+**Consigli:** Orari e note per l'ascolto (1-2 frasi)
 """
             if custom_question:
-                prompt += f"\n5. **Domanda specifica dell'utente**: {custom_question}\n"
+                prompt += f"\n**Domanda utente:** {custom_question}\n"
 
             if audio_wav:
                 audio_dur = (len(audio_wav) - 44) / (SAMPLE_RATE * 2)
-                prompt += f"\n6. **Analisi audio**: Ho allegato un campione audio di {audio_dur:.1f} secondi catturato in tempo reale dal ricevitore SDR. Questo è l'audio demodulato che l'utente sta ascoltando. Analizzalo attentamente: cosa senti? Riesci a identificare voci, musica, segnali dati digitali, portanti, o interferenze? Descrivi quello che senti nel campione."
+                prompt += f"\n**Audio allegato** ({audio_dur:.1f}s dal ricevitore SDR): Descrivi brevemente cosa senti (voce, musica, dati, rumore, portante)."
 
             # Call Gemini
             response_text = _call_gemini(prompt, audio_wav)
+
+            # Extract the suggested label from Gemini's response
+            import re as _re
+            suggested_label = ""
+            label_match = _re.search(r'\*\*ETICHETTA_SUGGERITA:\*\*\s*(.+)', response_text)
+            if label_match:
+                suggested_label = label_match.group(1).strip().strip('"').strip("'").strip('*').strip()
 
             self.send_response(
                 json.dumps({
                     "success": True,
                     "frequency_mhz": freq_mhz,
+                    "frequency_hz": freq_hz,
                     "mode": mode,
                     "analysis": response_text,
+                    "suggested_label": suggested_label,
                     "had_audio": audio_wav is not None,
                     "audio_duration_s": (len(audio_wav) - 44) / (SAMPLE_RATE * 2) if audio_wav else 0
                 }),
@@ -336,6 +370,84 @@ class GeminiCaptureController(Controller):
                 headers={"Access-Control-Allow-Origin": "*"}
             )
         except Exception as e:
+            self.send_response(
+                json.dumps({"error": str(e)}),
+                content_type="application/json", code=500,
+                headers={"Access-Control-Allow-Origin": "*"}
+            )
+
+
+class GeminiBookmarkController(Controller):
+    """POST /api/gemini/bookmark - create a bookmark from Gemini's suggestion"""
+
+    def indexAction(self):
+        try:
+            body = self.get_body()
+            if not body:
+                self.send_response(
+                    json.dumps({"error": "Empty request body"}),
+                    content_type="application/json", code=400,
+                    headers={"Access-Control-Allow-Origin": "*"}
+                )
+                return
+
+            data = json.loads(body.decode('utf-8'))
+            name = data.get('name', '').strip()
+            freq_hz = int(data.get('frequency', 0))
+            modulation = data.get('modulation', '').strip().lower()
+            description = data.get('description', '').strip()
+
+            if not name or freq_hz <= 0 or not modulation:
+                self.send_response(
+                    json.dumps({"error": "name, frequency (>0) and modulation are required"}),
+                    content_type="application/json", code=400,
+                    headers={"Access-Control-Allow-Origin": "*"}
+                )
+                return
+
+            from owrx.bookmarks import Bookmarks, Bookmark
+            from owrx.modes import Modes
+
+            # Validate modulation
+            mode = Modes.findByModulation(modulation)
+            if mode is None:
+                # Try common aliases
+                alias_map = {"usb": "usb", "lsb": "lsb", "am": "am", "nfm": "nfm",
+                             "wfm": "wfm", "cw": "cw", "dmr": "dmr", "dstar": "dstar",
+                             "ft8": "ft8", "ft4": "ft4", "wspr": "wspr", "sstv": "sstv"}
+                modulation = alias_map.get(modulation, modulation)
+                mode = Modes.findByModulation(modulation)
+
+            if mode is None:
+                self.send_response(
+                    json.dumps({"error": f"Unknown modulation: {modulation}"}),
+                    content_type="application/json", code=400,
+                    headers={"Access-Control-Allow-Origin": "*"}
+                )
+                return
+
+            bm_data = {
+                "name": name,
+                "frequency": freq_hz,
+                "modulation": modulation,
+                "description": description,
+            }
+
+            bookmarks = Bookmarks.getSharedInstance()
+            b = Bookmark(bm_data)
+            bookmarks.addBookmark(b)
+            bookmarks.store()
+
+            logger.info("Bookmark created from Gemini: '%s' @ %d Hz (%s)", name, freq_hz, modulation)
+
+            self.send_response(
+                json.dumps({"success": True, "bookmark": bm_data}),
+                content_type="application/json",
+                headers={"Access-Control-Allow-Origin": "*"}
+            )
+
+        except Exception as e:
+            logger.error("Gemini bookmark error: %s", e, exc_info=True)
             self.send_response(
                 json.dumps({"error": str(e)}),
                 content_type="application/json", code=500,
