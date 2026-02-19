@@ -404,6 +404,18 @@
                             <div id="openwebrx-smeter-db">0 dB</div>
                         </div>
                     </div>
+                    <div id="openwebrx-section-tools" class="openwebrx-section-divider" onclick="UI.toggleSection(this);">&blacktriangle;&nbsp;Tools</div>
+                    <div class="openwebrx-section">
+                        <div class="openwebrx-panel-line openwebrx-tools-line">
+                            <div class="openwebrx-button openwebrx-tool-button openwebrx-scan-add-button" onclick="SdrTools.addToScan();" title="Add current frequency to auto-scan list">
+                                <span>📻 Add to Scan</span>
+                            </div>
+                            <div class="openwebrx-button openwebrx-tool-button openwebrx-gemini-button" onclick="SdrTools.askGemini();" title="Ask Gemini AI about this frequency">
+                                <span>🤖 Ask Gemini</span>
+                            </div>
+                        </div>
+                        <div id="openwebrx-gemini-status" class="openwebrx-panel-line" style="display:none; font-size:11px; color:#64B5F6; padding:2px 0;"></div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -455,5 +467,200 @@
             <input type="submit" style="display:none;">
         </form>
     </div>
+    <!-- Gemini AI Analysis Modal -->
+    <div id="gemini-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:10000; justify-content:center; align-items:center;">
+        <div style="background:#1a1a2e; color:#e0e0e0; padding:25px; border-radius:15px; width:90%; max-width:700px; max-height:80vh; overflow-y:auto; box-shadow:0 0 30px rgba(100,181,246,0.4); position:relative; font-family:sans-serif;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                <h2 style="margin:0; color:#64B5F6; font-size:1.3em;">🤖 Gemini AI — Analisi Frequenza</h2>
+                <button onclick="document.getElementById('gemini-modal').style.display='none';" style="background:none; border:none; color:#fff; font-size:1.8em; cursor:pointer; line-height:1;">&times;</button>
+            </div>
+            <div id="gemini-freq-info" style="background:rgba(255,255,255,0.05); padding:10px; border-radius:8px; margin-bottom:15px; font-family:monospace; font-size:0.9em;"></div>
+            <div id="gemini-result" style="white-space:pre-wrap; line-height:1.6; font-size:0.9em;"></div>
+        </div>
+    </div>
+    <!-- SDR Tools JS -->
+    <style>
+    .openwebrx-tools-line { display:flex; gap:4px; overflow:hidden; }
+    .openwebrx-tool-button {
+        flex:1; text-align:center; padding:4px 6px; font-size:11px;
+        cursor:pointer; border-radius:4px; white-space:nowrap;
+        background:rgba(100,181,246,0.15); border:1px solid rgba(100,181,246,0.3);
+        color:#64B5F6; transition:all 0.2s; overflow:hidden;
+        min-width:0;
+    }
+    .openwebrx-tool-button:hover { background:rgba(100,181,246,0.3); transform:scale(1.02); }
+    .openwebrx-scan-add-button { color:#4CAF50; background:rgba(76,175,80,0.15); border-color:rgba(76,175,80,0.3); }
+    .openwebrx-scan-add-button:hover { background:rgba(76,175,80,0.3); }
+    .openwebrx-gemini-button { color:#FF9800; background:rgba(255,152,0,0.15); border-color:rgba(255,152,0,0.3); }
+    .openwebrx-gemini-button:hover { background:rgba(255,152,0,0.3); }
+    #openwebrx-section-tools + .openwebrx-section { overflow:hidden; }
+    </style>
+    <script>
+    var SdrTools = {
+        _getFreqInfo: function() {
+            // Use the official OpenWebRX UI API
+            try {
+                var dp = UI.getDemodulatorPanel();
+                var demod = UI.getDemodulator();
+            } catch(e) {
+                return null;
+            }
+            if (!dp || !demod) return null;
+            var cFreq = dp.center_freq || center_freq || 0;
+            var offset = demod.get_offset_frequency() || 0;
+            var freq = cFreq + offset;
+            // Use UI.getModulation() which handles secondary demods correctly
+            var mod = UI.getModulation() || demod.get_modulation() || 'unknown';
+            // Get bandwidth from bandpass
+            var bw = 0;
+            var bp = demod.getBandpass();
+            if (bp && bp.low_cut != null && bp.high_cut != null) {
+                bw = Math.abs(bp.high_cut - bp.low_cut);
+            }
+            // Get squelch from demodulator
+            var sq = demod.getSquelch ? demod.getSquelch() : -150;
+            return { frequency: freq, mode: mod, bandwidth: bw, squelch: sq };
+        },
+
+        addToScan: function() {
+            var info = this._getFreqInfo();
+            if (!info || info.frequency < 100000) {
+                alert('Nessuna frequenza sintonizzata.\nAssicurati che la radio sia attiva e sintonizzata.');
+                return;
+            }
+            var freqMhz = (info.frequency / 1e6).toFixed(3);
+            // Confirmation dialog first
+            var ok = confirm(
+                '📻 Aggiungere alla scansione automatica?\n\n' +
+                'Frequenza: ' + freqMhz + ' MHz\n' +
+                'Modo: ' + info.mode.toUpperCase() + '\n' +
+                'Banda: ' + (info.bandwidth > 0 ? info.bandwidth + ' Hz' : 'N/D') + '\n' +
+                'Squelch: ' + info.squelch + ' dB\n\n' +
+                'Premi OK per continuare.'
+            );
+            if (!ok) return;
+            var label = prompt('Etichetta per la frequenza di scansione (' + freqMhz + ' MHz ' + info.mode + '):', 
+                              freqMhz + ' MHz ' + info.mode);
+            if (label === null) return; // cancelled
+            if (!label) label = freqMhz + ' MHz ' + info.mode;
+
+            var dwellTime = parseInt(prompt('Tempo di permanenza in secondi (default: 90):', '90')) || 90;
+
+            var payload = {
+                frequency: info.frequency,
+                mode: info.mode,
+                bandwidth: info.bandwidth || 12500,
+                squelch: Math.max(0, (info.squelch + 150) / 150),
+                dwell_time: dwellTime,
+                label: label
+            };
+
+            $.ajax({
+                url: '/api/scan/add',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(payload),
+                success: function(resp) {
+                    var r = typeof resp === 'string' ? JSON.parse(resp) : resp;
+                    alert('✅ Frequenza aggiunta alla scansione!\n\n' + 
+                          r.entry.label + '\n' +
+                          'Totale frequenze: ' + r.total);
+                },
+                error: function(xhr) {
+                    var err = 'Errore';
+                    try { err = JSON.parse(xhr.responseText).error; } catch(e) {}
+                    if (xhr.status === 409) {
+                        alert('⚠️ Frequenza già presente nella lista di scansione');
+                    } else {
+                        alert('❌ Errore: ' + err);
+                    }
+                }
+            });
+        },
+
+        askGemini: function() {
+            var info = this._getFreqInfo();
+            if (!info || info.frequency < 100000) {
+                alert('Nessuna frequenza sintonizzata');
+                return;
+            }
+            var freqMhz = (info.frequency / 1e6).toFixed(6);
+            var statusEl = document.getElementById('openwebrx-gemini-status');
+            var modal = document.getElementById('gemini-modal');
+            var resultEl = document.getElementById('gemini-result');
+            var freqInfoEl = document.getElementById('gemini-freq-info');
+
+            // Ask if user wants to include audio
+            var includeAudio = confirm(
+                '🤖 Analisi Gemini AI\n\n' +
+                'Frequenza: ' + freqMhz + ' MHz\n' +
+                'Modo: ' + info.mode + '\n\n' +
+                'Vuoi includere un campione audio di 5 secondi?\n' +
+                '(OK = Sì, cattura audio + analisi)\n' +
+                '(Annulla = Solo analisi testo)'
+            );
+
+            statusEl.style.display = 'block';
+
+            if (includeAudio) {
+                statusEl.textContent = '🎤 Cattura audio in corso (5 sec)...';
+                // Start capture
+                $.post('/api/gemini/capture', function() {
+                    // Wait for capture to complete
+                    setTimeout(function() {
+                        statusEl.textContent = '🤖 Invio a Gemini AI con audio...';
+                        SdrTools._sendGemini(info, true, statusEl, modal, resultEl, freqInfoEl);
+                    }, 5500);
+                }).fail(function() {
+                    statusEl.textContent = '⚠️ Errore cattura audio, invio solo testo...';
+                    setTimeout(function() {
+                        SdrTools._sendGemini(info, false, statusEl, modal, resultEl, freqInfoEl);
+                    }, 1000);
+                });
+            } else {
+                statusEl.textContent = '🤖 Invio a Gemini AI...';
+                this._sendGemini(info, false, statusEl, modal, resultEl, freqInfoEl);
+            }
+        },
+
+        _sendGemini: function(info, hasAudio, statusEl, modal, resultEl, freqInfoEl) {
+            var freqMhz = (info.frequency / 1e6).toFixed(6);
+            var payload = {
+                frequency: info.frequency,
+                mode: info.mode,
+                bandwidth: info.bandwidth,
+                squelch: info.squelch,
+                has_audio: hasAudio
+            };
+
+            $.ajax({
+                url: '/api/gemini/analyze',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(payload),
+                timeout: 60000,
+                success: function(resp) {
+                    var r = typeof resp === 'string' ? JSON.parse(resp) : resp;
+                    statusEl.style.display = 'none';
+                    freqInfoEl.innerHTML = '📻 <b>' + freqMhz + ' MHz</b> | Modo: <b>' + info.mode + '</b>' +
+                        (r.had_audio ? ' | 🎤 Audio: <b>' + r.audio_duration_s.toFixed(1) + 's</b>' : ' | 📝 Solo testo');
+                    // Convert markdown-ish to HTML
+                    var html = r.analysis
+                        .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
+                        .replace(/\n/g, '<br>');
+                    resultEl.innerHTML = html;
+                    modal.style.display = 'flex';
+                },
+                error: function(xhr) {
+                    statusEl.textContent = '❌ Errore Gemini';
+                    setTimeout(function() { statusEl.style.display = 'none'; }, 3000);
+                    var err = 'Errore di comunicazione';
+                    try { err = JSON.parse(xhr.responseText).error; } catch(e) {}
+                    alert('❌ Errore Gemini AI: ' + err);
+                }
+            });
+        }
+    };
+    </script>
     </body>
 </html>

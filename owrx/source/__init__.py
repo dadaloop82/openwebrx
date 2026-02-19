@@ -397,7 +397,27 @@ class SdrSource(ABC):
                 self.stderrPipe.close()
                 self.stderrPipe = None
                 if self.getState() is SdrSourceState.RUNNING:
-                    self.fail()
+                    # Process crashed while running - attempt auto-recovery
+                    # instead of permanently marking the source as failed
+                    self.logger.warning(
+                        "SDR source process died unexpectedly (RC=%d), scheduling restart (attempt %d/%d)",
+                        rc, self.retryCount + 1, self.maxRetries
+                    )
+                    # Clean up stale TcpSource and buffer so they're recreated on restart
+                    if self.tcpSource is not None:
+                        try:
+                            self.tcpSource.stop()
+                        except Exception:
+                            pass
+                        self.tcpSource = None
+                        self.buffer = None
+                    self.setState(SdrSourceState.STOPPED)
+                    if self.retryCount < self.maxRetries:
+                        self._scheduleRestart()
+                    else:
+                        self.logger.error("SDR source exceeded max retries (%d), marking as failed", self.maxRetries)
+                        self.fail()
+                    return
                 else:
                     failed = True
                 self.setState(SdrSourceState.STOPPED)

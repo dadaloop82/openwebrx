@@ -488,6 +488,7 @@ function mkscale() {
 }
 
 function resize_scale() {
+    if (!scale_canvas) return;
     var ratio = window.devicePixelRatio || 1;
     var w = window.innerWidth;
     var h = 47;

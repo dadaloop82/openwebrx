@@ -51,6 +51,7 @@ class ServiceHandler(SdrSourceEventClient):
         props = self.source.getProps()
         self.activitySub = props.filter("center_freq", "samp_rate").wire(self.onFrequencyChange)
         self.decodersSub = Config.get().wireProperty("services_decoders", self.onFrequencyChange)
+        logger.debug("ServiceHandler._start(): source available=%s", self.source.isAvailable())
         if self.source.isAvailable():
             self._scheduleServiceStartup()
 
@@ -70,10 +71,11 @@ class ServiceHandler(SdrSourceEventClient):
         return SdrClientClass.INACTIVE
 
     def onStateChange(self, state: SdrSourceState):
+        logger.debug("ServiceHandler.onStateChange(%s)", state)
         if state is SdrSourceState.RUNNING:
             self._scheduleServiceStartup()
         elif state is SdrSourceState.STOPPING:
-            logger.debug("sdr source becoming unavailable; stopping services.")
+            logger.info("sdr source becoming unavailable; stopping services.")
             self.stopServices()
 
     def onFail(self):
@@ -108,6 +110,7 @@ class ServiceHandler(SdrSourceEventClient):
 
     def onFrequencyChange(self, changes):
         self.stopServices()
+        logger.debug("ServiceHandler.onFrequencyChange(): source available=%s", self.source.isAvailable())
         if not self.source.isAvailable():
             return
         self._scheduleServiceStartup()
@@ -131,25 +134,34 @@ class ServiceHandler(SdrSourceEventClient):
                 logger.exception("Error setting up service {mode} on frequency {frequency}".format(**dial))
 
         with self.lock:
-            logger.debug("re-scheduling services due to sdr changes")
+            logger.debug("updateServices: re-scheduling services due to sdr changes")
             self.stopServices()
             if not self.source.isAvailable():
-                logger.debug("sdr source is unavailable")
+                logger.debug("updateServices: sdr source is unavailable")
                 return
             cf = self.source.getProps()["center_freq"]
             sr = self.source.getProps()["samp_rate"]
             srh = sr / 2
             frequency_range = (cf - srh, cf + srh)
+            logger.debug("updateServices: scanning range %.3f - %.3f MHz",
+                        frequency_range[0] / 1e6, frequency_range[1] / 1e6)
+
+            all_dials = Bandplan.getSharedInstance().collectDialFrequencies(frequency_range)
+            logger.debug("updateServices: bandplan returned %d entries: %s",
+                        len(all_dials), [(d["mode"], d["frequency"]/1e6) for d in all_dials])
 
             dials = [
                 dial
-                for dial in Bandplan.getSharedInstance().collectDialFrequencies(frequency_range)
+                for dial in all_dials
                 if self.isSupported(dial["mode"])
             ]
 
             if not dials:
-                logger.debug("no services available")
+                logger.debug("updateServices: no services available in range")
                 return
+
+            logger.debug("updateServices: found %d dial frequencies: %s",
+                        len(dials), [(d["mode"], d["frequency"]/1e6) for d in dials])
 
             groups = self.optimizeResampling(dials, sr)
             if groups is None:

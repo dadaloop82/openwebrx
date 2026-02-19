@@ -3,14 +3,14 @@ Auto Mode API Controller
 Provides REST API for auto-mode status
 """
 
-from owrx.controllers.template import WebpageController
+from owrx.controllers import Controller
 import json
 import logging
 
 logger = logging.getLogger(__name__)
 
 
-class AutoModeStatusController(WebpageController):
+class AutoModeStatusController(Controller):
     """Public API endpoint for auto-mode status"""
     
     def indexAction(self):
@@ -27,5 +27,6 @@ class AutoModeStatusController(WebpageController):
             logger.error("Error getting auto-mode status: %s", e, exc_info=True)
             self.send_response(
                 json.dumps({"error": str(e), "initialized": False}),
-                content_type="application/json"
+                content_type="application/json",
+                headers={"Access-Control-Allow-Origin": "*"}
             )

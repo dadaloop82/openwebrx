@@ -196,7 +196,8 @@ class ClientMonitor:
                 if not is_local:
                     self._trigger_callbacks('remote_client_disconnected', client)
                     
-                    if not self.has_remote_clients():
+                    # Use unlocked version since we already hold clients_lock
+                    if not self._has_remote_clients_unlocked():
                         logger.info("🎯 All remote clients gone - AUTO MODE can activate")
                         self._trigger_callbacks('all_remote_clients_gone')
     
@@ -206,18 +207,20 @@ class ClientMonitor:
             if client_id in self.clients:
                 self.clients[client_id].update_activity()
     
+    def _has_remote_clients_unlocked(self) -> bool:
+        """Check if any remote clients are connected (caller must hold clients_lock)"""
+        if self.config['consider_local_clients']:
+            return len(self.clients) > 0
+        else:
+            for client in self.clients.values():
+                if not self.is_local_ip(client.ip):
+                    return True
+            return False
+
     def has_remote_clients(self) -> bool:
         """Check if any remote clients are connected"""
         with self.clients_lock:
-            if self.config['consider_local_clients']:
-                # All clients count
-                return len(self.clients) > 0
-            else:
-                # Only remote clients count
-                for client in self.clients.values():
-                    if not self.is_local_ip(client.ip):
-                        return True
-                return False
+            return self._has_remote_clients_unlocked()
     
     def get_client_count(self) -> Dict[str, int]:
         """Get count of local and remote clients"""
@@ -251,11 +254,22 @@ class ClientMonitor:
     def _monitor_loop(self):
         """Background monitoring loop"""
         last_remote_count = 0
+        startup_auto_delay = self.config.get('startup_auto_delay', 30)
+        startup_auto_fired = False
+        loop_start = time.time()
         
         while self.running:
             try:
                 counts = self.get_client_count()
                 current_remote_count = counts['remote']
+                
+                # On startup, if no relevant clients after delay, trigger auto mode
+                if not startup_auto_fired and (time.time() - loop_start) >= startup_auto_delay:
+                    startup_auto_fired = True
+                    has_clients = (current_remote_count > 0) if not self.config['consider_local_clients'] else (counts['total'] > 0)
+                    if not has_clients:
+                        logger.info("🎯 Startup: No clients after %ds delay - triggering AUTO MODE", startup_auto_delay)
+                        self._trigger_callbacks('all_remote_clients_gone')
                 
                 # Log status every minute
                 if int(time.time()) % 60 == 0:

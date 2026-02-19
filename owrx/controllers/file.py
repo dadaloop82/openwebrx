@@ -117,9 +117,22 @@ class FilesController(WebpageController):
             is_image = self.isimg.match(filename)
 
             try:
-                size_str = self._format_size(os.path.getsize(filepath))
+                file_size = os.path.getsize(filepath)
+                size_str = self._format_size(file_size)
             except Exception:
+                file_size = 0
                 size_str = ""
+
+            # Skip small AUTO session .txt files with no useful decodings
+            if filename.startswith('AUTO-') and filename.endswith('.txt') and file_size < 10240:
+                try:
+                    with open(filepath, 'r') as f:
+                        content = f.read()
+                    if 'Decodings: 0' in content or content.count('\n') < 10:
+                        continue
+                except Exception:
+                    if file_size < 1024:
+                        continue
 
             duration_str = self._get_duration(filepath) if is_audio else ""
 
@@ -160,15 +173,44 @@ class FilesController(WebpageController):
                 size_str = entry['size_str']
                 duration_str = entry['duration_str']
 
-                icon = "🎵" if is_audio else ("🖼️" if is_image else "📄")
-                card_class = "file-card" + (" is-image" if is_image else "")
+                is_auto = info.get('mode') == 'AUTO'
+                is_rec = info.get('mode') == 'REC'
+                is_ism = info.get('mode') == 'ISM'
+                if is_auto:
+                    icon = "🤖"
+                elif is_rec:
+                    icon = "🎙️"
+                elif is_ism:
+                    icon = "📡"
+                elif is_audio:
+                    icon = "🎵"
+                elif is_image:
+                    icon = "🖼️"
+                else:
+                    icon = "📄"
+                card_class = "file-card"
+                if is_auto:
+                    card_class += " is-auto"
+                elif is_rec:
+                    card_class += " is-rec"
+                elif is_ism:
+                    card_class += " is-ism"
+                if is_image:
+                    card_class += " is-image"
 
                 # Meta
                 meta = []
                 if info['freq']:
                     meta.append('<span class="freq">%.4f MHz</span>' % info['freq'])
                 if info['mode']:
-                    meta.append('<span class="mode-tag">%s</span>' % info['mode'])
+                    if info['mode'] == 'AUTO':
+                        meta.append('<span class="mode-tag auto-mode-tag">🤖 AUTO</span>')
+                    elif info['mode'] == 'REC':
+                        meta.append('<span class="mode-tag rec-mode-tag">🎙️ REC</span>')
+                    elif info['mode'] == 'ISM':
+                        meta.append('<span class="mode-tag ism-mode-tag">📡 ISM</span>')
+                    else:
+                        meta.append('<span class="mode-tag">%s</span>' % info['mode'])
                 if info['time']:
                     meta.append('<span>%s</span>' % info['time'])
                 if duration_str:
@@ -179,7 +221,26 @@ class FilesController(WebpageController):
 
                 # Player
                 player_html = ""
-                if is_audio:
+                if is_auto and filename.endswith('.txt'):
+                    try:
+                        txt_path = Storage.getFilePath(filename)
+                        with open(txt_path, 'r') as txt_f:
+                            txt_content = txt_f.read()
+                        # Escape HTML
+                        txt_content = txt_content.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                        player_html = '<div class="auto-session-log"><pre>%s</pre></div>' % txt_content
+                    except:
+                        player_html = ""
+                elif is_ism and filename.endswith('.txt'):
+                    try:
+                        txt_path = Storage.getFilePath(filename)
+                        with open(txt_path, 'r') as txt_f:
+                            txt_content = txt_f.read()
+                        txt_content = txt_content.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                        player_html = '<div class="auto-session-log"><pre>%s</pre></div>' % txt_content
+                    except:
+                        player_html = ""
+                elif is_audio:
                     player_html = (
                         '<div class="card-player">'
                         '<div class="viz-wrap">'
@@ -228,4 +289,22 @@ class FilesController(WebpageController):
             self.send_response("{}", content_type="application/json", code=200)
         except Exception as e:
             logger.debug("delete(): " + str(e))
+            self.send_response("{}", content_type="application/json", code=400)
+
+    def delete_all(self):
+        try:
+            files = Storage.getSharedInstance().getStoredFiles()
+            deleted = 0
+            for filename in files:
+                try:
+                    Storage.getSharedInstance().deleteFile(filename)
+                    deleted += 1
+                except Exception as e:
+                    logger.debug("delete_all() skip %s: %s", filename, e)
+            self.send_response(
+                json.dumps({"deleted": deleted}),
+                content_type="application/json", code=200
+            )
+        except Exception as e:
+            logger.debug("delete_all(): " + str(e))
             self.send_response("{}", content_type="application/json", code=400)

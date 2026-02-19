@@ -162,6 +162,7 @@ class OpenWebRxReceiverClient(OpenWebRxClient, SdrSourceEventClient):
         self.configSubs = []
         self.bookmarkSub = None
         self.connectionProperties = {}
+        self.dspStarted = False
 
         # Get initial robot score based on the number of recent connections
         self.lastProfileChange = time.time()
@@ -288,6 +289,10 @@ class OpenWebRxReceiverClient(OpenWebRxClient, SdrSourceEventClient):
     def onStateChange(self, state: SdrSourceState):
         if state is SdrSourceState.RUNNING:
             self.handleSdrAvailable()
+        elif state is SdrSourceState.STOPPED and self.sdr is not None and not self.sdr.isFailed():
+            # SDR process crashed, stop DSP so it's recreated fresh on restart
+            self.stopDsp()
+            self.write_log_message("SDR device is restarting, please wait...")
 
     def onFail(self):
         logger.warning('SDR device "%s" has failed, selecting new device', self.sdr.getName())
@@ -327,6 +332,7 @@ class OpenWebRxReceiverClient(OpenWebRxClient, SdrSourceEventClient):
                     else:
                         if "action" in message and message["action"] == "start":
                             dsp.start()
+                            self.dspStarted = True
 
                         if "params" in message:
                             params = message["params"]
@@ -437,10 +443,15 @@ class OpenWebRxReceiverClient(OpenWebRxClient, SdrSourceEventClient):
             self.sdr.addClient(self)
 
     def handleSdrAvailable(self):
-        self.getDsp().setProperties(self.connectionProperties)
+        dsp = self.getDsp()
+        dsp.setProperties(self.connectionProperties)
         self.stack.replaceLayer(0, self.sdr.getProps())
 
         self.sdr.addSpectrumClient(self)
+
+        # Auto-restart DSP if it was running before a crash/recovery
+        if self.dspStarted and dsp is not None:
+            dsp.start()
 
     def handleNoSdrsAvailable(self):
         self.write_sdr_error("No SDR Devices available")
@@ -476,6 +487,13 @@ class OpenWebRxReceiverClient(OpenWebRxClient, SdrSourceEventClient):
         self.mp_send(bytes([0x01]) + data)
 
     def write_dsp_data(self, data):
+        # Feed audio to Gemini capture if active (data is ADPCM-compressed audio from the main demodulator)
+        try:
+            from owrx.controllers.gemini_api import feed_audio_capture, _audio_capturing
+            if _audio_capturing:
+                feed_audio_capture(data, is_adpcm=True)
+        except Exception:
+            pass
         self.send(bytes([0x02]) + data)
 
     def write_hd_audio(self, data):

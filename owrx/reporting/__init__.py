@@ -72,3 +72,13 @@ class ReportingEngine(object):
                     r.spot(spot)
                 except Exception:
                     logger.exception("error sending spot to reporter")
+
+        # Feed decoded data to DecoderManager for auto-mode session logs
+        try:
+            from owrx.decoder_manager import DecoderManager
+            dm = DecoderManager.get_instance()
+            if dm.is_recording:
+                mode = spot.get("mode", "UNKNOWN")
+                dm.add_decoding(mode.lower(), spot)
+        except Exception:
+            pass

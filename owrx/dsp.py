@@ -9,7 +9,6 @@ from csdr.chain.demodulator import BaseDemodulatorChain, FixedIfSampleRateChain,
     DeemphasisTauChain, DemodulatorError, RdsChain, AudioServiceSelector
 from csdr.chain.selector import Selector, SecondarySelector
 from owrx.auto_squelch_recorder import get_recorder
-from owrx.auto_squelch_recorder import get_recorder
 from csdr.chain.clientaudio import ClientAudioChain
 from csdr.chain.fft import FftChain
 from csdr.chain.dummy import DummyDemodulator
@@ -499,14 +498,6 @@ class DspManager(SdrSourceEventClient, ClientDemodulatorSecondaryDspEventClient)
             logger.error("Failed to initialize squelch recorder: %s", e)
             self.squelch_recorder = None
         
-        # Initialize squelch recorder
-        try:
-            self.squelch_recorder = get_recorder()
-            logger.info("🎙️  Squelch recorder integrated with DSP")
-        except Exception as e:
-            logger.error("Failed to initialize squelch recorder: %s", e)
-            self.squelch_recorder = None
-        
         self.chain = ClientDemodulatorChain(
             self._getDemodulator("nfm"),
             self.props["samp_rate"],
@@ -855,7 +846,12 @@ class DspManager(SdrSourceEventClient, ClientDemodulatorSecondaryDspEventClient)
 
     def start(self):
         if self.sdrSource.isAvailable():
-            self.chain.setReader(self.sdrSource.getBuffer().getReader())
+            try:
+                buf = self.sdrSource.getBuffer()
+                reader = buf.getReader()
+                self.chain.setReader(reader)
+            except Exception as e:
+                logger.exception(e)
         else:
             self.startOnAvailable = True
 

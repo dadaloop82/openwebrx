@@ -847,7 +847,7 @@ FaxMessagePanel.prototype.render = function() {
     $b.append($('<tr><td class="message" style="color: #ffa500; padding: 10px; font-weight: bold;">' +
         '⏳ DECODER FAX ATTIVO - In attesa di trasmissione...<br>' +
         '<span style="font-size: 0.9em; font-weight: normal;">Il decoder funziona correttamente. ' +
-        'L'immagine apparirà quando inizia una trasmissione FAX attiva.<br>' +
+        'L\'immagine apparirà quando inizia una trasmissione FAX attiva.<br>' +
         'Verifica che ci sia una trasmissione in corso:<br>' +
         '• DWD Pinneberg 7.880 MHz: 03:00, 09:00, 15:00, 21:00 UTC<br>' +
         '• Northwood UK 4.610 MHz: 00:00, 06:00, 12:00, 18:00 UTC</span>' +

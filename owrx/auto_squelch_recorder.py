@@ -18,11 +18,21 @@ from typing import Optional
 
 RECORDINGS_DIR = "/var/lib/openwebrx/recordings"
 MIN_DURATION_SECONDS = 3
+MAX_RECORDING_DURATION = 300  # Max 5 minutes per recording (safety net for digital modes)
 MAX_AGE_DAYS = 7
 CLEANUP_INTERVAL = 300
 SILENCE_TIMEOUT = 3.0
 FREQ_DWELL_SECONDS = 2.0  # Must stay on a frequency this long before recording starts
 AUDIO_RMS_THRESHOLD = 0.015  # Float threshold (range -1.0 to 1.0)
+
+# Digital modes where squelch recording makes no sense (decoded as text, not voice)
+DIGITAL_MODES = frozenset({
+    'ft8', 'ft4', 'wspr', 'jt65', 'jt9', 'js8',
+    'msk144', 'q65', 'fst4', 'fst4w',
+    'packet', 'aprs', 'pocsag', 'adsb', 'acars',
+    'rtty', 'psk', 'psk31', 'psk63',
+    'dmr', 'dstar', 'nxdn', 'ysf', 'm17', 'freedv',
+})
 
 logging.basicConfig(
     level=logging.INFO,
@@ -65,6 +75,8 @@ class SquelchRecorder:
         # Frequency change tracking
         self._last_seen_freq = None
         self._freq_stable_since = None  # When the current frequency was first seen
+        self._current_mode = None  # Set by external caller (e.g. wav.py or orchestrator)
+        self._recording_disabled_for_mode = False
         
         self.cleanup_thread = threading.Thread(target=self._cleanup_worker, daemon=True)
         self.cleanup_thread.start()
@@ -112,6 +124,19 @@ class SquelchRecorder:
             floats = struct.unpack('<%df' % num_floats, float_bytes[:num_floats * 4])
             sum_sq = sum(f * f for f in floats)
             return (sum_sq / num_floats) ** 0.5
+        except Exception:
+            return 0.0
+
+    def _compute_rms_int16(self, int16_bytes: bytes) -> float:
+        """Compute RMS level of INT16 PCM audio data, normalized to 0.0-1.0 range"""
+        try:
+            num_samples = len(int16_bytes) // 2
+            if num_samples == 0:
+                return 0.0
+            samples = struct.unpack('<%dh' % num_samples, int16_bytes[:num_samples * 2])
+            sum_sq = sum(s * s for s in samples)
+            rms_int16 = (sum_sq / num_samples) ** 0.5
+            return rms_int16 / 32768.0  # Normalize to 0.0-1.0 range
         except Exception:
             return 0.0
     
@@ -243,22 +268,31 @@ class SquelchRecorder:
     
     def _has_frequency_changed(self, frequency_hz: Optional[int]) -> bool:
         """Check if frequency changed compared to last seen value.
-        Also updates the dwell-time tracker."""
+        Also updates the dwell-time tracker.
+        Uses tolerance to ignore small variations and interleaved multi-decoder streams."""
         now = time.time()
         
         if frequency_hz is None:
             return False
         
-        if self._last_seen_freq is None or self._last_seen_freq != frequency_hz:
-            # Frequency changed — reset dwell timer
+        # Tolerance: ignore changes smaller than 50 kHz (different decoder offsets)
+        FREQ_TOLERANCE_HZ = 50000
+        
+        if self._last_seen_freq is None:
+            self._last_seen_freq = frequency_hz
+            self._freq_stable_since = now
+            return False
+        
+        if abs(self._last_seen_freq - frequency_hz) > FREQ_TOLERANCE_HZ:
+            # Significant frequency change — reset dwell timer
             old_freq = self._last_seen_freq
             self._last_seen_freq = frequency_hz
             self._freq_stable_since = now
-            if old_freq is not None:
-                logger.info("Frequency changed: %.4f → %.4f MHz",
-                            old_freq / 1e6, frequency_hz / 1e6)
-            return old_freq is not None  # True only if there was a previous freq
+            logger.debug("Frequency changed: %.4f → %.4f MHz",
+                         old_freq / 1e6, frequency_hz / 1e6)
+            return True
         
+        # Within tolerance — don't reset dwell timer, just update tracking
         return False
     
     def _frequency_dwelled(self) -> bool:
@@ -267,18 +301,46 @@ class SquelchRecorder:
             return False
         return (time.time() - self._freq_stable_since) >= FREQ_DWELL_SECONDS
     
-    def write_audio_chunk(self, audio_data: bytes, frequency_hz: Optional[int] = None):
+    def set_current_mode(self, mode: Optional[str]):
+        """Set the current demodulation mode. Used to skip recording on digital modes."""
+        if mode is None:
+            return
+        mode_lower = mode.lower()
+        was_disabled = self._recording_disabled_for_mode
+        self._current_mode = mode_lower
+        self._recording_disabled_for_mode = mode_lower in DIGITAL_MODES
+        if self._recording_disabled_for_mode and not was_disabled:
+            logger.info("Recording disabled for digital mode: %s", mode)
+            if self.is_recording:
+                logger.info("Stopping recording — switched to digital mode %s", mode)
+                self._stop_recording()
+        elif not self._recording_disabled_for_mode and was_disabled:
+            logger.info("Recording re-enabled for mode: %s", mode)
+
+    def write_audio_chunk(self, audio_data: bytes, frequency_hz: Optional[int] = None, is_int16: bool = False):
         """
-        Write audio chunk - receives FLOAT32 PCM data from the DSP chain.
-        Converts to INT16, analyzes RMS, records when signal above threshold.
+        Write audio chunk - receives PCM data from the DSP chain.
+        Supports both FLOAT32 and INT16 input formats.
+        Analyzes RMS, records when signal above threshold.
         Handles frequency changes: stops current recording, waits dwell time before new one.
         """
         if len(audio_data) < 4:
             return
+
+        # Skip recording for digital modes
+        if self._recording_disabled_for_mode:
+            return
         
-        # Compute RMS on float data
-        rms = self._compute_rms_float(audio_data)
-        has_signal = rms > AUDIO_RMS_THRESHOLD
+        if is_int16:
+            # Data is already INT16 - compute RMS on int16 data
+            rms = self._compute_rms_int16(audio_data)
+            has_signal = rms > AUDIO_RMS_THRESHOLD
+            int16_data_ready = audio_data
+        else:
+            # Data is FLOAT32 - compute RMS on float data
+            rms = self._compute_rms_float(audio_data)
+            has_signal = rms > AUDIO_RMS_THRESHOLD
+            int16_data_ready = None  # will convert lazily
         
         with self._lock:
             # --- Frequency change detection ---
@@ -293,6 +355,14 @@ class SquelchRecorder:
                 # Not yet stable on this frequency — don't start recording
                 return
             
+            # Safety: enforce max recording duration
+            if self.is_recording and self.recording_start_time:
+                rec_elapsed = time.time() - self.recording_start_time
+                if rec_elapsed >= MAX_RECORDING_DURATION:
+                    logger.info("Max recording duration reached (%.0fs) — stopping", rec_elapsed)
+                    self._stop_recording()
+                    return
+
             if has_signal:
                 if not self.is_recording:
                     self._start_recording(frequency_hz)
@@ -300,11 +370,13 @@ class SquelchRecorder:
                 self.last_signal_time = time.time()
                 self.chunk_count += 1
                 
-                # Convert float32 to int16 and write to WAV
+                # Write to WAV (convert float32 to int16 if needed)
                 try:
                     if self.current_wavfile:
-                        int16_data = self._float32_to_int16(audio_data)
-                        self.current_wavfile.writeframes(int16_data)
+                        if int16_data_ready is not None:
+                            self.current_wavfile.writeframes(int16_data_ready)
+                        else:
+                            self.current_wavfile.writeframes(self._float32_to_int16(audio_data))
                 except Exception as e:
                     logger.error("Error writing audio chunk: %s", e)
                 
@@ -314,21 +386,24 @@ class SquelchRecorder:
                 self.chunk_count += 1
                 try:
                     if self.current_wavfile:
-                        int16_data = self._float32_to_int16(audio_data)
-                        self.current_wavfile.writeframes(int16_data)
+                        if int16_data_ready is not None:
+                            self.current_wavfile.writeframes(int16_data_ready)
+                        else:
+                            self.current_wavfile.writeframes(self._float32_to_int16(audio_data))
                 except Exception as e:
                     logger.error("Error writing audio chunk: %s", e)
     
     def get_status(self) -> dict:
+        status = {
+            'recording': self.is_recording,
+            'recording_disabled': self._recording_disabled_for_mode,
+            'current_mode': self._current_mode,
+        }
         if self.is_recording:
-            duration = time.time() - self.recording_start_time
-            return {
-                'recording': True,
-                'duration': duration,
-                'file': self.current_filepath.name if self.current_filepath else None,
-                'frequency_hz': self.current_frequency_hz
-            }
-        return {'recording': False}
+            status['duration'] = time.time() - self.recording_start_time
+            status['file'] = self.current_filepath.name if self.current_filepath else None
+            status['frequency_hz'] = self.current_frequency_hz
+        return status
     
     def _status_broadcaster(self):
         import time as _time
@@ -342,6 +417,10 @@ class SquelchRecorder:
                     for client in list(registry.clients):
                         try:
                             if hasattr(client, 'write_recording_status'):
+                                # Skip clients with dead websocket connections
+                                conn = getattr(client, 'conn', None)
+                                if conn is not None and (getattr(conn, 'socketError', False) or not getattr(conn, 'open', True)):
+                                    continue
                                 client.write_recording_status(status)
                         except Exception:
                             pass

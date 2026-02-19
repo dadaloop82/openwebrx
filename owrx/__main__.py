@@ -156,21 +156,35 @@ Support and info:       https://groups.io/g/openwebrx
     SdrService.getAllSources()
 
     Services.start()
+    logger.info("🟢 Services.start() completed")
     
     # Initialize auto-mode system
+    logger.info("🔵 ABOUT TO INITIALIZE AUTO-MODE SYSTEM...")
     try:
         init_auto_mode_system()
         logger.info("Auto-mode system initialized successfully")
     except Exception as e:
-        logger.warning("Failed to initialize auto-mode system: %s", e)
+        logger.error("Failed to initialize auto-mode system: %s", e, exc_info=True)
     
     # Instantiate and start GPS location updater
     GpsUpdater.init()
+    logger.info("🟡 GpsUpdater.init() completed")
+
     # Instantiate and refresh marker database
     Markers.start()
+    logger.info("🟡 Markers.start() completed")
+
+    # Initialize recording scheduler
+    try:
+        from owrx.recording_scheduler import init_recording_scheduler
+        init_recording_scheduler()
+        logger.info("🟡 RecordingScheduler initialized")
+    except Exception as e:
+        logger.error("Failed to initialize RecordingScheduler: %s", e)
 
     # Report server started
     reportServerState("ServerStarted")
+    logger.info("🟡 reportServerState completed")
 
     try:
         # This is our HTTP server
@@ -201,6 +215,14 @@ Support and info:       https://groups.io/g/openwebrx
     # Shutdown auto-mode system
     try:
         shutdown_auto_mode_system()
+    except:
+        pass
+
+    # Shutdown recording scheduler
+    try:
+        from owrx.recording_scheduler import RecordingScheduler
+        scheduler = RecordingScheduler.get_instance()
+        scheduler.stop()
     except:
         pass
 

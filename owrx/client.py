@@ -10,6 +10,28 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+def _notify_client_monitor_connect(client_id, ip):
+    """Notify ClientMonitor about a new connection"""
+    try:
+        from owrx.client_monitor import ClientMonitor
+        monitor = ClientMonitor.get_instance()
+        if monitor.running:
+            monitor.client_connected(client_id, ip)
+    except Exception as e:
+        logger.debug("ClientMonitor notification failed: %s", e)
+
+
+def _notify_client_monitor_disconnect(client_id):
+    """Notify ClientMonitor about a disconnection"""
+    try:
+        from owrx.client_monitor import ClientMonitor
+        monitor = ClientMonitor.get_instance()
+        if monitor.running:
+            monitor.client_disconnected(client_id)
+    except Exception as e:
+        logger.debug("ClientMonitor notification failed: %s", e)
+
+
 class TooManyClientsException(Exception):
     pass
 
@@ -55,6 +77,8 @@ class ClientRegistry(object):
         self.clients.append(client)
         self.broadcast()
         self.reportClient(client, { "state":"Connected" })
+        # Notify auto-mode system
+        _notify_client_monitor_connect(str(id(client)), self.getIp(client.conn.handler))
 
     def clientCount(self):
         return len(self.clients)
@@ -80,6 +104,8 @@ class ClientRegistry(object):
             pass
         self.broadcast()
         self.reportClient(client, { "state":"Disconnected" })
+        # Notify auto-mode system
+        _notify_client_monitor_disconnect(str(id(client)))
 
     def _checkClientCount(self, new_count):
         for client in self.clients[new_count:]:

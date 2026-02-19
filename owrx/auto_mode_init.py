@@ -50,8 +50,6 @@ def init_auto_mode_system(receiver=None):
             
             logger.info("⚙️  Initializing AutoTuner...")
             _auto_tuner = AutoTuner.get_instance()
-            if receiver:
-                _auto_tuner.set_receiver(receiver)
             
             logger.info("⚙️  Initializing DecoderManager...")
             _decoder_manager = DecoderManager.get_instance()
@@ -136,7 +134,16 @@ def get_auto_mode_status():
     
     if _decoder_manager:
         status['decoder_manager'] = _decoder_manager.get_statistics()
-    
+
+    # Add squelch recorder status (recording duration, etc.)
+    try:
+        from owrx.auto_squelch_recorder import get_recorder
+        recorder = get_recorder()
+        if recorder:
+            status['squelch_recorder'] = recorder.get_status()
+    except Exception:
+        pass
+
     return status
 
 

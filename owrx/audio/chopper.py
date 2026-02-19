@@ -12,7 +12,6 @@ import pickle
 import logging
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
 
 
 class AudioChopperParser(ABC):
@@ -24,6 +23,7 @@ class AudioChopperParser(ABC):
 class AudioChopper(ThreadModule, ProfileSourceSubscriber):
     def __init__(self, mode_str: str, parser: AudioChopperParser):
         self.parser = parser
+        self.mode_str = mode_str
         self.dialFrequency = None
         self.doRun = True
         self.writers = []

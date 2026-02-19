@@ -12,7 +12,6 @@ import logging
 from owrx.auto_squelch_recorder import get_recorder
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
 
 
 class WaveFile(object):
@@ -138,12 +137,21 @@ class AudioWriter(object):
         # Feed audio to squelch recorder (auto-starts/stops recording)
         try:
             recorder = get_recorder()
-            if hasattr(self.chopper, 'dialFrequency') and self.chopper.dialFrequency:
-                # Pass audio data - recorder handles start/stop automatically
-                recorder.write_audio_chunk(data, self.chopper.dialFrequency)
+            dial_freq = getattr(self.chopper, 'dialFrequency', None)
+            # Inform recorder of current mode (to skip digital modes)
+            mode_str = getattr(self.chopper, 'mode_str', None)
+            if mode_str and not getattr(self, '_mode_sent', None) == mode_str:
+                recorder.set_current_mode(mode_str)
+                self._mode_sent = mode_str
+            if dial_freq:
+                recorder.write_audio_chunk(data, dial_freq, is_int16=True)
+            else:
+                if not getattr(self, '_dial_warn_logged', False):
+                    logger.warning("AudioWriter: dialFrequency is %r - skipping recorder", dial_freq)
+                    self._dial_warn_logged = True
         except Exception as e:
-            pass  # Don't break audio chain
-        
+            logger.warning("SquelchRecorder feed error: %s", e)
+
         with self.switchingLock:
             self.wavefile.writeframes(data)
 

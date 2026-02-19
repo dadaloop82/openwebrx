@@ -26,6 +26,9 @@ from owrx.controllers.session import SessionController
 from owrx.controllers.profile import ProfileController
 from owrx.controllers.imageupload import ImageUploadController
 from owrx.controllers.auto_mode import AutoModeStatusController
+from owrx.controllers.recordings import RecordingsPageController, SchedulerStatusController
+from owrx.controllers.scan_api import ScanFrequenciesController
+from owrx.controllers.gemini_api import GeminiAnalyzeController, GeminiCaptureController
 from owrx.controllers.robots import RobotsController
 from owrx.storage import Storage
 from http.server import BaseHTTPRequestHandler
@@ -185,10 +188,18 @@ class Router(object):
             StaticRoute("/files", FilesController),
             RegexRoute("^/files/(%s)$" % Storage.getNamePattern(), FileController),
             StaticRoute("/files/delete", FilesController, method="POST", options={"action": "delete"}),
+            StaticRoute("/files/delete-all", FilesController, method="POST", options={"action": "delete_all"}),
             StaticRoute("/policy", PolicyController),
             StaticRoute("/clients", ClientController),
             StaticRoute("/services", ServiceController),
             StaticRoute("/api/auto-mode/status", AutoModeStatusController),
+            StaticRoute("/api/scheduler/status", SchedulerStatusController),
+            StaticRoute("/api/scan/frequencies", ScanFrequenciesController),
+            StaticRoute("/api/scan/add", ScanFrequenciesController, method="POST", options={"action": "add"}),
+            StaticRoute("/api/scan/remove", ScanFrequenciesController, method="POST", options={"action": "remove"}),
+            StaticRoute("/api/gemini/analyze", GeminiAnalyzeController, method="POST"),
+            StaticRoute("/api/gemini/capture", GeminiCaptureController, method="POST"),
+            StaticRoute("/recordings", RecordingsPageController),
             StaticRoute("/ban", ClientController, method="POST", options={"action": "ban"}),
             StaticRoute("/unban", ClientController, method="POST", options={"action": "unban"}),
             StaticRoute("/broadcast", ClientController, method="POST", options={"action": "broadcast"}),

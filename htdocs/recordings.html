@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SDR Station - Recordings</title>
+    <link rel="shortcut icon" type="image/x-icon" href="static/favicon.ico" />
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #1a1a2e;
+            color: #e0e0e0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .top-bar {
+            background: linear-gradient(135deg, #16213e 0%, #0f3460 100%);
+            padding: 10px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 2px solid #e94560;
+            flex-shrink: 0;
+        }
+        .top-bar h1 {
+            font-size: 1.2em;
+            font-weight: 600;
+            color: #fff;
+        }
+        .top-bar h1 .icon { margin-right: 8px; }
+        .top-bar .links {
+            display: flex;
+            gap: 12px;
+        }
+        .top-bar .links a {
+            color: #8ecae6;
+            text-decoration: none;
+            padding: 6px 14px;
+            border-radius: 6px;
+            background: rgba(255,255,255,0.08);
+            font-size: 0.9em;
+            transition: all 0.2s;
+        }
+        .top-bar .links a:hover {
+            background: rgba(233,69,96,0.3);
+            color: #fff;
+        }
+        .top-bar .links a.active {
+            background: #e94560;
+            color: #fff;
+        }
+        .status-bar {
+            background: #16213e;
+            padding: 8px 20px;
+            display: flex;
+            gap: 20px;
+            font-size: 0.85em;
+            border-bottom: 1px solid #333;
+            flex-shrink: 0;
+            flex-wrap: wrap;
+        }
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .status-dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        .status-dot.green { background: #4caf50; box-shadow: 0 0 6px #4caf50; }
+        .status-dot.yellow { background: #ff9800; box-shadow: 0 0 6px #ff9800; }
+        .status-dot.red { background: #f44336; box-shadow: 0 0 6px #f44336; }
+        .status-dot.blue { background: #2196f3; box-shadow: 0 0 6px #2196f3; }
+        .iframe-container {
+            flex: 1;
+            overflow: hidden;
+        }
+        .iframe-container iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+        @media (max-width: 600px) {
+            .top-bar { flex-direction: column; gap: 8px; text-align: center; }
+            .status-bar { justify-content: center; }
+        }
+    </style>
+</head>
+<body>
+    <div class="top-bar">
+        <h1><span class="icon">📡</span> SDR Station Italia - Recordings</h1>
+        <div class="links">
+            <a href="/" target="_blank">🎧 Radio</a>
+            <a href="/map" target="_blank">🗺️ Map</a>
+            <a class="active" href="/recordings">📁 Files</a>
+            <a href="/api/auto-mode/status" target="_blank">📊 Status API</a>
+            <a href="/api/scheduler/status" target="_blank">📅 Scheduler API</a>
+        </div>
+    </div>
+    <div class="status-bar" id="statusBar">
+        <div class="status-item">
+            <span class="status-dot" id="dot-service"></span>
+            <span id="status-service">Connecting...</span>
+        </div>
+        <div class="status-item">
+            <span class="status-dot" id="dot-automode"></span>
+            <span id="status-automode">—</span>
+        </div>
+        <div class="status-item">
+            <span class="status-dot" id="dot-recording"></span>
+            <span id="status-recording">—</span>
+        </div>
+        <div class="status-item">
+            <span class="status-dot" id="dot-scheduler"></span>
+            <span id="status-scheduler">—</span>
+        </div>
+    </div>
+    <div class="iframe-container">
+        <iframe id="filesFrame" src="/files"></iframe>
+    </div>
+
+    <script>
+        function updateStatus() {
+            // Auto-mode status
+            fetch('/api/auto-mode/status')
+                .then(r => r.json())
+                .then(data => {
+                    // Service
+                    document.getElementById('dot-service').className = 'status-dot green';
+                    document.getElementById('status-service').textContent = 'OpenWebRX Online';
+
+                    // Auto-mode
+                    const orch = data.orchestrator || {};
+                    const state = orch.state || 'unknown';
+                    const freq = orch.current_frequency;
+                    const dotAuto = document.getElementById('dot-automode');
+                    const txtAuto = document.getElementById('status-automode');
+                    
+                    if (state === 'auto') {
+                        dotAuto.className = 'status-dot green';
+                        const label = freq ? (freq.label || (freq.frequency / 1e6).toFixed(3) + ' MHz') : '';
+                        txtAuto.textContent = '🤖 Auto: ' + label;
+                    } else if (state === 'manual') {
+                        dotAuto.className = 'status-dot yellow';
+                        txtAuto.textContent = '👤 Manual mode';
+                    } else {
+                        dotAuto.className = 'status-dot red';
+                        txtAuto.textContent = 'Auto-mode: ' + state;
+                    }
+
+                    // Squelch recorder
+                    const rec = data.squelch_recorder || {};
+                    const dotRec = document.getElementById('dot-recording');
+                    const txtRec = document.getElementById('status-recording');
+                    if (rec.recording) {
+                        dotRec.className = 'status-dot red';
+                        const dur = rec.duration ? Math.round(rec.duration) + 's' : '';
+                        txtRec.textContent = '🔴 Recording ' + (rec.file || '') + ' ' + dur;
+                    } else {
+                        dotRec.className = 'status-dot blue';
+                        txtRec.textContent = '⏸ Not recording';
+                    }
+
+                    // Decodings
+                    const dec = data.decoder_manager || {};
+                    if (dec.total_decodings > 0) {
+                        const parts = Object.entries(dec.by_decoder || {}).map(([k,v]) => k + ':' + v);
+                        txtRec.textContent += ' | Decodings: ' + dec.total_decodings + ' (' + parts.join(', ') + ')';
+                    }
+                })
+                .catch(() => {
+                    document.getElementById('dot-service').className = 'status-dot red';
+                    document.getElementById('status-service').textContent = 'OpenWebRX Offline';
+                });
+
+            // Scheduler status
+            fetch('/api/scheduler/status')
+                .then(r => r.json())
+                .then(data => {
+                    const dotSched = document.getElementById('dot-scheduler');
+                    const txtSched = document.getElementById('status-scheduler');
+                    if (data.running) {
+                        if (data.active_recordings > 0) {
+                            dotSched.className = 'status-dot red';
+                            txtSched.textContent = '📅 Scheduler: ' + data.active_recordings + ' active recording(s)';
+                        } else {
+                            dotSched.className = 'status-dot green';
+                            txtSched.textContent = '📅 Scheduler: ' + data.enabled_schedules + '/' + data.total_schedules + ' schedules enabled';
+                        }
+                    } else {
+                        dotSched.className = 'status-dot yellow';
+                        txtSched.textContent = '📅 Scheduler: stopped';
+                    }
+                })
+                .catch(() => {
+                    document.getElementById('dot-scheduler').className = 'status-dot yellow';
+                    document.getElementById('status-scheduler').textContent = '📅 Scheduler: N/A';
+                });
+        }
+
+        updateStatus();
+        setInterval(updateStatus, 10000);
+        // Refresh iframe every 2 minutes to show new recordings
+        setInterval(function() {
+            document.getElementById('filesFrame').src = '/files';
+        }, 120000);
+    </script>
+</body>
+</html>

@@ -159,7 +159,7 @@ $(function(){
         });
     });
 
-    // Delete
+    // Delete single file
     $(document).on('click','.file-delete',function(e){
         e.preventDefault();e.stopPropagation();
         var name=$(this).data('name');
@@ -174,5 +174,23 @@ $(function(){
                 if($('.file-card').length===0)$('.files-empty').show();
             });
         }).fail(function(){btn.prop('disabled',false).text('✕');alert('Errore')});
+    });
+
+    // Delete ALL recordings
+    $('#deleteAllBtn').on('click',function(){
+        var count=$('.file-card').length;
+        if(count===0){alert('Nessun file da eliminare.');return}
+        if(!confirm('⚠️ Eliminare TUTTE le '+count+' registrazioni e file?\n\nQuesta azione è irreversibile!'))return;
+        var btn=$(this);btn.prop('disabled',true).text('Eliminazione in corso...');
+        $.ajax('/files/delete-all',{contentType:'application/json',method:'POST',data:'{}'})
+        .done(function(resp){
+            var d=resp.deleted||0;
+            $('.file-group').slideUp(200,function(){$(this).remove()});
+            setTimeout(function(){
+                $('.files-empty').show();
+                btn.prop('disabled',false).text('🗑️ Cancella Tutto');
+                alert('✅ '+d+' file eliminati.');
+            },300);
+        }).fail(function(){btn.prop('disabled',false).text('🗑️ Cancella Tutto');alert('Errore durante l\'eliminazione')});
     });
 });
