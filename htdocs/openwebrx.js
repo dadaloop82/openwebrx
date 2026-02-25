@@ -857,11 +857,7 @@ function on_ws_recv(evt) {
                     return [args[0], args.slice(1).join('=')]
                 })
             );
-            var versionInfo = 'Unknown server';
-            if (params.server && params.server === 'openwebrx' && params.version) {
-                versionInfo = 'OpenWebRX+ version: ' + params.version;
-            }
-            divlog('Server acknowledged WebSocket connection, ' + versionInfo);
+            divlog('✅ Server: <b>OpenWebRX+ ' + (params.version || '?') + '</b>');
         } else {
             try {
                 var json = JSON.parse(evt.data);
@@ -907,11 +903,9 @@ function on_ws_recv(evt) {
                         if ('audio_compression' in config) {
                             var audio_compression = config['audio_compression'];
                             audioEngine.setCompression(audio_compression);
-                            divlog("Audio stream is " + ((audio_compression === "adpcm") ? "compressed" : "uncompressed") + ".");
                         }
                         if ('fft_compression' in config) {
                             fft_compression = config['fft_compression'];
-                            divlog("FFT stream is " + ((fft_compression === "adpcm") ? "compressed" : "uncompressed") + ".");
                         }
                         if ('max_clients' in config)
                             $('#openwebrx-bar-clients').progressbar().setMaxClients(config['max_clients']);
@@ -1181,6 +1175,36 @@ function on_ws_recv(evt) {
                     case 'log_message':
                         divlog(json['value'], true);
                         break;
+                    case 'sdr_info':
+                        var s = json['value'];
+                        var lines = [];
+                        // Line 1: Device name and type
+                        var devLine = '📡 <b>' + (s.name || 'SDR') + '</b>';
+                        if (s.type) devLine += ' <span style="opacity:0.6">(' + s.type + ')</span>';
+                        if (s.device) devLine += ' · SN: <span style="color:#ffd740">' + s.device + '</span>';
+                        lines.push(devLine);
+                        // Line 2: Profile and tuning info
+                        var tuneLine = '🎛️ ';
+                        if (s.profile_name) tuneLine += 'Profile: <b>' + s.profile_name + '</b> · ';
+                        if (s.center_freq) tuneLine += 'CF: <b>' + (s.center_freq >= 1e6 ? (s.center_freq/1e6).toFixed(3)+' MHz' : (s.center_freq/1e3).toFixed(1)+' kHz') + '</b> · ';
+                        if (s.samp_rate) tuneLine += 'BW: <b>' + (s.samp_rate >= 1e6 ? (s.samp_rate/1e6).toFixed(1)+' MHz' : (s.samp_rate/1e3).toFixed(0)+' kHz') + '</b>';
+                        lines.push(tuneLine);
+                        // Line 3: Gain, PPM, direct sampling, compression
+                        var cfgLine = '⚙️ ';
+                        if (s.rf_gain !== null && s.rf_gain !== undefined) cfgLine += 'Gain: <b>' + s.rf_gain + ' dB</b> · ';
+                        if (s.ppm) cfgLine += 'PPM: ' + s.ppm + ' · ';
+                        if (s.direct_sampling && s.direct_sampling > 0) cfgLine += '🔴 DS: Q-branch · ';
+                        if (s.bias_tee) cfgLine += '⚡Bias-T ON · ';
+                        if (s.audio_compression) cfgLine += 'Audio: ' + s.audio_compression.toUpperCase() + ' · ';
+                        if (s.fft_compression) cfgLine += 'FFT: ' + s.fft_compression.toUpperCase() + ' · ';
+                        if (s.fft_size) cfgLine += 'FFT: ' + s.fft_size + 'pt';
+                        // Remove trailing " · "
+                        cfgLine = cfgLine.replace(/ · $/, '');
+                        lines.push(cfgLine);
+                        // Line 4: Profiles count
+                        if (s.profiles_count) lines.push('📋 Profiles: ' + s.profiles_count + ' available');
+                        divlog('<div class="sdr-info-block">' + lines.join('<br/>') + '</div>');
+                        break;
                     case 'chat_message':
                         Chat.recvMessage(json['name'], json['text'], json['color']);
                         break;
@@ -1265,7 +1289,7 @@ function on_ws_recv(evt) {
 function on_ws_opened() {
     $('#openwebrx-error-overlay').hide();
     ws.send("SERVER DE CLIENT client=openwebrx.js type=receiver");
-    divlog("WebSocket opened to " + ws.url);
+    divlog('🌐 Connected to <b>' + ws.url.replace('ws://', '').replace('wss://', '') + '</b>');
     if (!networkSpeedMeasurement) {
         networkSpeedMeasurement = new Measurement();
         networkSpeedMeasurement.report(60000, 1000, function(rate){
@@ -1306,7 +1330,7 @@ var mute = false;
 var audio_buffer_maximal_length_sec = 1; //actual number of samples are calculated from sample rate
 
 function onAudioStart(apiType){
-    divlog('Web Audio API succesfully initialized, using ' + apiType  + ' API, sample rate: ' + audioEngine.getSampleRate() + " Hz");
+    divlog('🔊 Audio: ' + apiType + ' @ <b>' + audioEngine.getSampleRate() + ' Hz</b>');
 
     hideOverlay();
 

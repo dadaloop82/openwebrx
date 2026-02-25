@@ -449,9 +449,40 @@ class OpenWebRxReceiverClient(OpenWebRxClient, SdrSourceEventClient):
 
         self.sdr.addSpectrumClient(self)
 
+        # Send SDR device info to the client
+        self._sendSdrInfo()
+
         # Auto-restart DSP if it was running before a crash/recovery
         if self.dspStarted and dsp is not None:
             dsp.start()
+
+    def _sendSdrInfo(self):
+        """Collect and send SDR device details to the client."""
+        if self.sdr is None:
+            return
+        try:
+            props = self.sdr.getProps()
+            info = {
+                "sdr_id": self.sdr.getId(),
+                "name": self.sdr.getName(),
+                "profile_name": self.sdr.getProfileName() if hasattr(self.sdr, 'getProfileName') else None,
+                "profile_id": props["profile_id"] if "profile_id" in props else None,
+                "type": props["type"] if "type" in props else None,
+                "samp_rate": props["samp_rate"] if "samp_rate" in props else None,
+                "center_freq": props["center_freq"] if "center_freq" in props else None,
+                "rf_gain": props["rf_gain"] if "rf_gain" in props else None,
+                "ppm": props["ppm"] if "ppm" in props else None,
+                "direct_sampling": props["direct_sampling"] if "direct_sampling" in props else 0,
+                "bias_tee": props["bias_tee"] if "bias_tee" in props else False,
+                "device": props["device"] if "device" in props else None,
+                "profiles_count": len(self.sdr.getProfiles()) if hasattr(self.sdr, 'getProfiles') else 0,
+                "fft_size": props["fft_size"] if "fft_size" in props else None,
+                "audio_compression": props["audio_compression"] if "audio_compression" in props else None,
+                "fft_compression": props["fft_compression"] if "fft_compression" in props else None,
+            }
+            self.write_sdr_info(info)
+        except Exception as e:
+            logger.warning("Failed to send SDR info: %s", str(e))
 
     def handleNoSdrsAvailable(self):
         self.write_sdr_error("No SDR Devices available")
@@ -558,6 +589,9 @@ class OpenWebRxReceiverClient(OpenWebRxClient, SdrSourceEventClient):
 
     def write_log_message(self, message):
         self.send({"type": "log_message", "value": message})
+
+    def write_sdr_info(self, info):
+        self.send({"type": "sdr_info", "value": info})
 
     def write_sdr_error(self, message):
         self.send({"type": "sdr_error", "value": message})
