@@ -37,6 +37,7 @@
         <link rel="stylesheet" type="text/css" href="static/css/openwebrx.css" />
         <link rel="stylesheet" type="text/css" href="static/css/shortcuts.css" />
         <link rel="stylesheet" type="text/css" href="static/css/themes.css" />
+        <link rel="stylesheet" type="text/css" href="static/css/system-stats.css" />
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9, minimum-scale=0.9, shrink-to-fit=no, user-scalable=no, interactive-widget=overlays-content" />
         <meta name="theme-color" content="#222" />
@@ -724,6 +725,51 @@
             });
         }
     };
+    </script>
+    <script>
+    /* ── System Stats live poller ────────────────────── */
+    (function() {
+        var POLL_INTERVAL = 3000;
+        function setLevel(el, value, warnAt, critAt) {
+            el.classList.remove('level-ok', 'level-warn', 'level-crit');
+            if (value === null || value === undefined) return;
+            if (value >= critAt) el.classList.add('level-crit');
+            else if (value >= warnAt) el.classList.add('level-warn');
+            else el.classList.add('level-ok');
+        }
+        function poll() {
+            var xhr = new XMLHttpRequest();
+            xhr.open('GET', document.location.pathname.replace(/[^\/]*$/, '') + 'api/system/stats', true);
+            xhr.timeout = 5000;
+            xhr.onload = function() {
+                if (xhr.status === 200) {
+                    try {
+                        var d = JSON.parse(xhr.responseText);
+                        var cpuEl  = document.getElementById('sys-cpu');
+                        var tempEl = document.getElementById('sys-temp');
+                        var ramEl  = document.getElementById('sys-ram');
+                        document.getElementById('sys-cpu-val').textContent = d.cpu_percent !== null ? d.cpu_percent.toFixed(0) : '--';
+                        document.getElementById('sys-ram-val').textContent = d.ram_percent !== null ? d.ram_percent.toFixed(0) : '--';
+                        if (d.cpu_temp !== null) {
+                            document.getElementById('sys-temp-val').textContent = d.cpu_temp.toFixed(0);
+                            tempEl.style.display = '';
+                        } else {
+                            tempEl.style.display = 'none';
+                        }
+                        setLevel(cpuEl,  d.cpu_percent, 60, 85);
+                        setLevel(tempEl, d.cpu_temp,    65, 80);
+                        setLevel(ramEl,  d.ram_percent, 70, 90);
+                        if (ramEl) ramEl.title = 'RAM: ' + d.ram_used_mb + ' / ' + d.ram_total_mb + ' MB';
+                    } catch(e) {}
+                }
+            };
+            xhr.send();
+        }
+        if (document.getElementById('system-stats-bar')) {
+            poll();
+            setInterval(poll, POLL_INTERVAL);
+        }
+    })();
     </script>
     </body>
 </html>

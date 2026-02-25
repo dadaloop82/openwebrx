@@ -6,6 +6,20 @@
             <h1 class="webrx-rx-title">Powered by Dadaloop82</h1>
             <div class="webrx-rx-desc">OpenWebRX+ Custom Edition | Advanced Recording & Monitoring</div>
         </div>
+        <div id="system-stats-bar">
+            <div class="sys-stat" id="sys-cpu" title="CPU Usage">
+                <svg viewBox="0 0 24 24" class="sys-icon"><path d="M17 10h2V7h-2v3zm0 7h2v-3h-2v3zM5 10h2V7H5v3zm0 7h2v-3H5v3zm10-14H9v2h6V3zm4 2h-2v2h2v10h-2v2h2a2 2 0 002-2V7a2 2 0 00-2-2zM7 19h2v-2H7v2H5V7h2V5H5a2 2 0 00-2 2v10a2 2 0 002 2h2zm2-6h6V9H9v4z" fill="currentColor"/></svg>
+                <span class="sys-value" id="sys-cpu-val">--</span><span class="sys-unit">%</span>
+            </div>
+            <div class="sys-stat" id="sys-temp" title="CPU Temperature">
+                <svg viewBox="0 0 24 24" class="sys-icon"><path d="M15 13V5a3 3 0 00-6 0v8a5 5 0 106 0zm-3-9a1 1 0 011 1v3h-2V5a1 1 0 011-1z" fill="currentColor"/></svg>
+                <span class="sys-value" id="sys-temp-val">--</span><span class="sys-unit">&deg;C</span>
+            </div>
+            <div class="sys-stat" id="sys-ram" title="RAM Usage">
+                <svg viewBox="0 0 24 24" class="sys-icon"><path d="M2 7h20v10H2V7zm2 2v6h16V9H4zm1 1h2v1H5v-1zm3 0h2v1H8v-1zm3 0h2v1h-2v-1zm3 0h2v1h-2v-1zm3 0h2v1h-2v-1zM5 12h2v1H5v-1zm3 0h2v1H8v-1zm3 0h2v1h-2v-1zm3 0h2v1h-2v-1zm3 0h2v1h-2v-1z" fill="currentColor"/></svg>
+                <span class="sys-value" id="sys-ram-val">--</span><span class="sys-unit">%</span>
+            </div>
+        </div>
         <section class="openwebrx-main-buttons">
             <a class="button" href="https://fms.komkon.org/OWRX/" target="openwebrx-help"><svg viewBox="0 -960 960 960"><use xlink:href="${document_root}static/gfx/svg-defs.svg#panel-help"></use></svg><br/>Help</a>
             <div class="button" data-toggle-panel="openwebrx-panel-status"><svg viewBox="0 -960 960 960"><use xlink:href="${document_root}static/gfx/svg-defs.svg#panel-status"></use></svg><br/>Status</div>
