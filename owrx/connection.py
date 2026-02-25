@@ -457,7 +457,7 @@ class OpenWebRxReceiverClient(OpenWebRxClient, SdrSourceEventClient):
             dsp.start()
 
     def _sendSdrInfo(self):
-        """Collect and send SDR device details to the client."""
+        """Collect and send generic SDR device details (not profile-specific)."""
         if self.sdr is None:
             return
         try:
@@ -465,20 +465,13 @@ class OpenWebRxReceiverClient(OpenWebRxClient, SdrSourceEventClient):
             info = {
                 "sdr_id": self.sdr.getId(),
                 "name": self.sdr.getName(),
-                "profile_name": self.sdr.getProfileName() if hasattr(self.sdr, 'getProfileName') else None,
-                "profile_id": props["profile_id"] if "profile_id" in props else None,
                 "type": props["type"] if "type" in props else None,
-                "samp_rate": props["samp_rate"] if "samp_rate" in props else None,
-                "center_freq": props["center_freq"] if "center_freq" in props else None,
-                "rf_gain": props["rf_gain"] if "rf_gain" in props else None,
-                "ppm": props["ppm"] if "ppm" in props else None,
-                "direct_sampling": props["direct_sampling"] if "direct_sampling" in props else 0,
-                "bias_tee": props["bias_tee"] if "bias_tee" in props else False,
                 "device": props["device"] if "device" in props else None,
+                "bias_tee": props["bias_tee"] if "bias_tee" in props else False,
                 "profiles_count": len(self.sdr.getProfiles()) if hasattr(self.sdr, 'getProfiles') else 0,
-                "fft_size": props["fft_size"] if "fft_size" in props else None,
                 "audio_compression": props["audio_compression"] if "audio_compression" in props else None,
                 "fft_compression": props["fft_compression"] if "fft_compression" in props else None,
+                "fft_size": props["fft_size"] if "fft_size" in props else None,
             }
             self.write_sdr_info(info)
         except Exception as e:

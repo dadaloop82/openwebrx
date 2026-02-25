@@ -92,17 +92,29 @@ class CpuUsageThread(threading.Thread):
         logger.debug("cpu usage thread shut down")
 
     def get_temperature(self):
-        # Must have temperature file
+        # Use psutil coretemp for consistency with the stats bar API
+        try:
+            import psutil
+            temps = psutil.sensors_temperatures()
+            if temps:
+                if "coretemp" in temps and temps["coretemp"]:
+                    return int(max(t.current for t in temps["coretemp"]))
+                # Fallback: pick highest from any source
+                for entries in temps.values():
+                    for t in entries:
+                        if t.current > 0:
+                            return int(t.current)
+        except Exception:
+            pass
+        # Legacy fallback: read from thermal zone file
         if self.tempFile is None:
             return 0
-        # Try opening and reading file
         try:
             f = open(self.tempFile, "r")
         except:
             return 0
         line = f.readline()
         f.close()
-        # Try parsing read temperature
         try:
             return int(line) // 1000
         except:

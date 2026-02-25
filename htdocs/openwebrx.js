@@ -1183,25 +1183,15 @@ function on_ws_recv(evt) {
                         if (s.type) devLine += ' <span style="opacity:0.6">(' + s.type + ')</span>';
                         if (s.device) devLine += ' · SN: <span style="color:#ffd740">' + s.device + '</span>';
                         lines.push(devLine);
-                        // Line 2: Profile and tuning info
-                        var tuneLine = '🎛️ ';
-                        if (s.profile_name) tuneLine += 'Profile: <b>' + s.profile_name + '</b> · ';
-                        if (s.center_freq) tuneLine += 'CF: <b>' + (s.center_freq >= 1e6 ? (s.center_freq/1e6).toFixed(3)+' MHz' : (s.center_freq/1e3).toFixed(1)+' kHz') + '</b> · ';
-                        if (s.samp_rate) tuneLine += 'BW: <b>' + (s.samp_rate >= 1e6 ? (s.samp_rate/1e6).toFixed(1)+' MHz' : (s.samp_rate/1e3).toFixed(0)+' kHz') + '</b>';
-                        lines.push(tuneLine);
-                        // Line 3: Gain, PPM, direct sampling, compression
+                        // Line 2: Technical details
                         var cfgLine = '⚙️ ';
-                        if (s.rf_gain !== null && s.rf_gain !== undefined) cfgLine += 'Gain: <b>' + s.rf_gain + ' dB</b> · ';
-                        if (s.ppm) cfgLine += 'PPM: ' + s.ppm + ' · ';
-                        if (s.direct_sampling && s.direct_sampling > 0) cfgLine += '🔴 DS: Q-branch · ';
                         if (s.bias_tee) cfgLine += '⚡Bias-T ON · ';
                         if (s.audio_compression) cfgLine += 'Audio: ' + s.audio_compression.toUpperCase() + ' · ';
                         if (s.fft_compression) cfgLine += 'FFT: ' + s.fft_compression.toUpperCase() + ' · ';
                         if (s.fft_size) cfgLine += 'FFT: ' + s.fft_size + 'pt';
-                        // Remove trailing " · "
                         cfgLine = cfgLine.replace(/ · $/, '');
-                        lines.push(cfgLine);
-                        // Line 4: Profiles count
+                        if (cfgLine !== '⚙️ ') lines.push(cfgLine);
+                        // Line 3: Profiles count
                         if (s.profiles_count) lines.push('📋 Profiles: ' + s.profiles_count + ' available');
                         divlog('<div class="sdr-info-block">' + lines.join('<br/>') + '</div>');
                         break;
