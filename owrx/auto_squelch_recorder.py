@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Optional
 
 RECORDINGS_DIR = "/var/lib/openwebrx/recordings"
-MIN_DURATION_SECONDS = 3
+MIN_DURATION_SECONDS = 5
 MAX_RECORDING_DURATION = 300  # Max 5 minutes per recording (safety net for digital modes)
 MAX_AGE_DAYS = 7
 CLEANUP_INTERVAL = 300
@@ -142,16 +142,19 @@ class SquelchRecorder:
     
     def _start_recording(self, frequency_hz: Optional[int] = None):
         """Start a new recording"""
-        timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+        now_local = datetime.now()
+        now_utc = datetime.utcnow()
+        timestamp_local = now_local.strftime('%Y%m%d_%H%M%S')
+        self._recording_utc_str = now_utc.strftime('%H:%M:%S UTC')
         
         if frequency_hz:
             freq_mhz = frequency_hz / 1_000_000
-            filename = f"{freq_mhz:.4f}MHz_{timestamp}.mp3"
+            filename = f"{freq_mhz:.4f}MHz_{timestamp_local}.mp3"
         else:
-            filename = f"REC_{timestamp}.mp3"
+            filename = f"REC_{timestamp_local}.mp3"
         
         self.current_filepath = self.recordings_dir / filename
-        self.current_wav_path = self.recordings_dir / f"temp_{timestamp}.wav"
+        self.current_wav_path = self.recordings_dir / f"temp_{timestamp_local}.wav"
         self.current_frequency_hz = frequency_hz
         self.recording_start_time = time.time()
         self.last_signal_time = time.time()

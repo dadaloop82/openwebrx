@@ -8,7 +8,7 @@ import re
 import os
 import logging
 import subprocess
-from datetime import datetime
+from datetime import datetime, timezone
 from collections import OrderedDict
 
 logger = logging.getLogger(__name__)
@@ -29,6 +29,18 @@ class FilesController(WebpageController):
 
     def isAuthorized(self):
         return self.user is not None and self.user.is_enabled() and not self.user.must_change_password
+
+    def _local_to_utc_str(self, date_str, time_str):
+        """Convert local date/time strings to UTC time string"""
+        try:
+            # date_str: DD/MM/YYYY, time_str: HH:MM:SS
+            dt_str = f"{date_str} {time_str}"
+            local_dt = datetime.strptime(dt_str, "%d/%m/%Y %H:%M:%S")
+            local_dt = local_dt.astimezone()  # Make it timezone-aware (local)
+            utc_dt = local_dt.astimezone(timezone.utc)
+            return utc_dt.strftime("%H:%M:%S")
+        except Exception:
+            return ""
 
     def _parse_filename(self, filename):
         info = {
@@ -212,7 +224,11 @@ class FilesController(WebpageController):
                     else:
                         meta.append('<span class="mode-tag">%s</span>' % info['mode'])
                 if info['time']:
-                    meta.append('<span>%s</span>' % info['time'])
+                    utc_str = self._local_to_utc_str(info['date'], info['time']) if info['date'] else ""
+                    if utc_str:
+                        meta.append('<span>%s <small style="opacity:0.6">(UTC %s)</small></span>' % (info['time'], utc_str))
+                    else:
+                        meta.append('<span>%s</span>' % info['time'])
                 if duration_str:
                     meta.append('<span class="dur">%s</span>' % duration_str)
                 if size_str:
