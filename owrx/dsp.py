@@ -48,6 +48,7 @@ class ClientDemodulatorChain(Chain):
         self.selector = Selector(sampleRate, outputRate)
         self.selectorBuffer = Buffer(Format.COMPLEX_FLOAT)
         self.audioBuffer = None
+        self.onAudioBufferChanged = None
         self.demodulator = demod
         self.secondaryDemodulator = None
         self.centerFrequency = None
@@ -88,6 +89,11 @@ class ClientDemodulatorChain(Chain):
                 self.audioBuffer = Buffer(format)
                 if self.secondaryDemodulator is not None and self.secondaryDemodulator.getInputFormat() is not Format.COMPLEX_FLOAT:
                     self.secondaryDemodulator.setReader(self.audioBuffer.getReader())
+                if self.onAudioBufferChanged:
+                    try:
+                        self.onAudioBufferChanged(self.audioBuffer)
+                    except Exception as e:
+                        logger.warning("onAudioBufferChanged error: %s", e)
             super()._connect(w1, w2, self.audioBuffer)
         else:
             super()._connect(w1, w2)
@@ -497,7 +503,10 @@ class DspManager(SdrSourceEventClient, ClientDemodulatorSecondaryDspEventClient)
         except Exception as e:
             logger.error("Failed to initialize squelch recorder: %s", e)
             self.squelch_recorder = None
-        
+
+        self.recorderTapReader = None
+        self.recorderTapThread = None
+
         self.chain = ClientDemodulatorChain(
             self._getDemodulator("nfm"),
             self.props["samp_rate"],
@@ -510,6 +519,11 @@ class DspManager(SdrSourceEventClient, ClientDemodulatorSecondaryDspEventClient)
         )
 
         self.readers = {}
+
+        # Set up squelch recorder audio tap (reads raw demod audio before ADPCM compression)
+        if self.squelch_recorder and self.chain.audioBuffer is not None:
+            self._startRecorderTap(self.chain.audioBuffer)
+        self.chain.onAudioBufferChanged = self._onAudioBufferChanged
 
         if "start_mod" in self.props:
             mode = Modes.findByModulation(self.props["start_mod"])
@@ -643,6 +657,15 @@ class DspManager(SdrSourceEventClient, ClientDemodulatorSecondaryDspEventClient)
             return SsbDigital()
 
     def setDemodulator(self, mod):
+        # Inform squelch recorder of mode change (to skip digital modes)
+        if self.squelch_recorder:
+            mode_str = mod if isinstance(mod, str) else getattr(mod, 'modulation', None)
+            if mode_str:
+                try:
+                    self.squelch_recorder.set_current_mode(mode_str)
+                except Exception:
+                    pass
+
         # this kills both primary and secondary demodulators
         self.chain.stopDemodulator()
 
@@ -812,6 +835,22 @@ class DspManager(SdrSourceEventClient, ClientDemodulatorSecondaryDspEventClient)
             return ElektroLritDemodulator()
 
     def setSecondaryDemodulator(self, mod):
+        # When a secondary digital demod is active, inform the recorder
+        if self.squelch_recorder:
+            if mod and isinstance(mod, str):
+                try:
+                    self.squelch_recorder.set_current_mode(mod)
+                except Exception:
+                    pass
+            elif not mod:
+                # Secondary demod removed — revert to primary mode
+                primary_mod = self.props["mod"] if "mod" in self.props else None
+                if primary_mod:
+                    try:
+                        self.squelch_recorder.set_current_mode(primary_mod)
+                    except Exception:
+                        pass
+
         demodulator = self._getSecondaryDemodulator(mod)
         if not demodulator:
             self.chain.setSecondaryDemodulator(None)
@@ -901,8 +940,65 @@ class DspManager(SdrSourceEventClient, ClientDemodulatorSecondaryDspEventClient)
 
         return unpickler
 
+    def _onAudioBufferChanged(self, audioBuffer):
+        """Called when the chain's audioBuffer is recreated (format change)."""
+        self._startRecorderTap(audioBuffer)
+
+    def _startRecorderTap(self, audioBuffer):
+        """Start a pump thread that reads raw demod audio and feeds the squelch recorder."""
+        self._stopRecorderTap()
+        if self.squelch_recorder is None or audioBuffer is None:
+            return
+        try:
+            self.recorderTapReader = audioBuffer.getReader()
+        except Exception as e:
+            logger.warning("Could not create recorder tap reader: %s", e)
+            return
+
+        recorder = self.squelch_recorder
+        reader = self.recorderTapReader
+        chain_ref = self.chain
+        is_float = (audioBuffer.getFormat() == Format.FLOAT)
+
+        def recorder_pump():
+            while True:
+                data = None
+                try:
+                    data = reader.read()
+                except (ValueError, BrokenPipeError):
+                    break
+                if data is None or (isinstance(data, bytes) and len(data) == 0):
+                    break
+                try:
+                    raw = data.tobytes() if hasattr(data, 'tobytes') else bytes(data)
+                    if len(raw) < 4:
+                        continue
+                    # Get dial frequency from chain
+                    dial_freq = None
+                    if chain_ref and chain_ref.centerFrequency is not None and chain_ref.frequencyOffset is not None:
+                        dial_freq = chain_ref.centerFrequency + chain_ref.frequencyOffset
+                    recorder.write_audio_chunk(raw, dial_freq, is_int16=not is_float)
+                except Exception:
+                    pass
+
+        self.recorderTapThread = threading.Thread(target=recorder_pump, daemon=True, name="recorder_audio_tap")
+        self.recorderTapThread.start()
+        logger.info("🎙️  Squelch recorder audio tap started (format=%s)", "FLOAT" if is_float else "INT16")
+
+    def _stopRecorderTap(self):
+        """Stop the recorder tap pump thread."""
+        if self.recorderTapReader is not None:
+            try:
+                self.recorderTapReader.stop()
+            except Exception:
+                pass
+            self.recorderTapReader = None
+        self.recorderTapThread = None
+
     def stop(self):
+        self._stopRecorderTap()
         if self.chain:
+            self.chain.onAudioBufferChanged = None
             self.chain.stop()
             self.chain = None
         for reader in self.readers.values():
