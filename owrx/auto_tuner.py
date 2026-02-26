@@ -253,14 +253,32 @@ class AutoTuner(SdrSourceEventClient):
         logger.info("═══════════════════════════════════════════════════")
 
     def exit_auto_mode(self):
-        """Leave auto mode. Keep the current profile to avoid SDR restart."""
+        """Leave auto mode. Keep SDR running for seamless handoff to user."""
         self.is_auto_mode = False
-        # Unregister from the SDR source
-        self._unregister_from_source()
-        # NOTE: We intentionally do NOT restore the saved profile here.
-        # Restoring a different profile (e.g., lw_mw with direct_sampling)
-        # forces an SDR restart that takes ~10s and blocks the waterfall.
-        # The user can select their preferred profile from the UI.
+
+        # Restore the profile's original center_freq if we changed it.
+        # setCenterFreq() only updates the control socket (no SDR restart).
+        if self._registered_source is not None:
+            try:
+                pid = self._registered_source.getProfileId()
+                profiles = self._registered_source.getProfiles()
+                if pid in profiles:
+                    profile = profiles[pid]
+                    original_cf = profile["center_freq"] if "center_freq" in profile else None
+                    if original_cf:
+                        self._registered_source.setCenterFreq(original_cf)
+                        logger.info("Restored center_freq to %.3f MHz (profile %s)",
+                                    original_cf / 1e6, pid)
+            except Exception as e:
+                logger.warning("Could not restore center_freq: %s", e)
+
+        # Do NOT unregister from the SDR source!
+        # The auto_tuner stays as a BACKGROUND client so the SDR keeps
+        # running.  The user's WebSocket will register as a USER client
+        # and the waterfall starts instantly — no restart needed.
+        # When auto-mode re-enters later, _register_on_source() will
+        # see we are already registered and skip re-registration.
+
         self._saved_source_id = None
         self._saved_profile = None
         logger.info("═══════════════════════════════════════════════════")

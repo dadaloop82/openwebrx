@@ -254,7 +254,7 @@ class ClientMonitor:
     def _monitor_loop(self):
         """Background monitoring loop"""
         last_remote_count = 0
-        startup_auto_delay = self.config.get('startup_auto_delay', 30)
+        startup_auto_delay = self.config.get('startup_auto_delay', 5)
         startup_auto_fired = False
         loop_start = time.time()
         
