@@ -332,6 +332,8 @@ class OpenWebRxReceiverClient(OpenWebRxClient, SdrSourceEventClient):
                     else:
                         if "action" in message and message["action"] == "start":
                             dsp.start()
+                            if not self.dspStarted:
+                                self.write_log_message("\u2705 Waterfall active")
                             self.dspStarted = True
 
                         if "params" in message:
@@ -407,6 +409,7 @@ class OpenWebRxReceiverClient(OpenWebRxClient, SdrSourceEventClient):
             else:
                 # Select a new profile
                 self.sdr.activateProfile(profile)
+                self.write_log_message("📋 Switching to profile: <b>{}</b>".format(profile))
 
     def setSdr(self, id=None):
         next = None
@@ -451,6 +454,22 @@ class OpenWebRxReceiverClient(OpenWebRxClient, SdrSourceEventClient):
 
         # Send SDR device info to the client
         self._sendSdrInfo()
+
+        # Log current profile info for the user
+        try:
+            pid = self.sdr.getProfileId() if hasattr(self.sdr, 'getProfileId') else None
+            props = self.sdr.getProps()
+            cf = props["center_freq"] if "center_freq" in props else 0
+            sr = props["samp_rate"] if "samp_rate" in props else 0
+            lo = (cf - sr / 2) / 1e6
+            hi = (cf + sr / 2) / 1e6
+            self.write_log_message(
+                "\U0001f4e1 Profile: <b>{}</b> &mdash; {:.3f} &ndash; {:.3f} MHz".format(
+                    pid or '?', lo, hi
+                )
+            )
+        except Exception:
+            pass
 
         # Auto-restart DSP if it was running before a crash/recovery
         if self.dspStarted and dsp is not None:

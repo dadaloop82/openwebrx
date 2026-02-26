@@ -210,7 +210,7 @@ class AutoModeOrchestrator:
             self.state = AutoModeState.MANUAL
     
     def _exit_auto_mode(self):
-        """Exit automatic mode"""
+        """Exit automatic mode — keeps current SDR profile to avoid restart."""
         try:
             # Change state first
             old_state = self.state
@@ -231,12 +231,13 @@ class AutoModeOrchestrator:
                 except:
                     pass
             
-            # Restore user settings
-            if self.auto_tuner and self.saved_user_settings:
-                self.auto_tuner.restore_settings(self.saved_user_settings)
-                self.saved_user_settings = None
+            # NOTE: Do NOT restore_settings or change profile here.
+            # Changing profile forces an SDR restart (10s SIGKILL timeout)
+            # which blocks the connecting user's waterfall. The user will
+            # select their preferred profile from the UI dropdown.
+            self.saved_user_settings = None
             
-            # Notify components
+            # Notify components (unregister from source, clear state)
             if self.auto_tuner:
                 self.auto_tuner.exit_auto_mode()
             

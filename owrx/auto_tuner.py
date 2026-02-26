@@ -253,21 +253,14 @@ class AutoTuner(SdrSourceEventClient):
         logger.info("═══════════════════════════════════════════════════")
 
     def exit_auto_mode(self):
-        """Restore previous state and leave auto mode."""
+        """Leave auto mode. Keep the current profile to avoid SDR restart."""
         self.is_auto_mode = False
         # Unregister from the SDR source
         self._unregister_from_source()
-        # Restore previous profile if we have one
-        if self._saved_source_id and self._saved_profile:
-            try:
-                from owrx.sdr import SdrService
-                source = SdrService.getSource(self._saved_source_id)
-                if source:
-                    source.activateProfile(self._saved_profile)
-                    logger.info("Restored profile '%s' on source '%s'",
-                                self._saved_profile, self._saved_source_id)
-            except Exception as e:
-                logger.warning("Could not restore previous profile: %s", e)
+        # NOTE: We intentionally do NOT restore the saved profile here.
+        # Restoring a different profile (e.g., lw_mw with direct_sampling)
+        # forces an SDR restart that takes ~10s and blocks the waterfall.
+        # The user can select their preferred profile from the UI.
         self._saved_source_id = None
         self._saved_profile = None
         logger.info("═══════════════════════════════════════════════════")
