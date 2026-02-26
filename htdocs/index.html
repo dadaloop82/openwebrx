@@ -219,30 +219,7 @@
                     <div style="position: relative; height: 100%">
                         <div class="openwebrx-panel-inner nano" id="openwebrx-log-scroll">
                             <div class="nano-content">
-                                <div id="openwebrx-client-log-title">OpenWebRX+ · Dadaloop82 Fork</div>
-                                <div style="margin-bottom:6px;">
-                                    Author: <a href="http://fms.komkon.org/" target="_blank">Marat Fayzullin</a> |
-                                    <a href="https://www.openwebrx.de" target="_blank">OpenWebRX</a>
-                                    <a href="https://fms.komkon.org/OWRX" target="_blank">documentation</a> and
-                                    <a href="https://groups.io/g/openwebrx" target="_blank">support</a>
-                                </div>
-                                <div style="background:rgba(0,255,140,0.08);border:1px solid rgba(0,255,140,0.25);border-radius:6px;padding:8px 10px;margin-bottom:8px;font-size:11px;line-height:1.5;">
-                                    <div style="font-weight:bold;color:#0f8;margin-bottom:4px;">🆕 Custom Features (Dadaloop82 Fork)</div>
-                                    <div>🎙️ <b>Auto Squelch Recorder</b> — Records signals automatically when squelch opens, saves as MP3. 2s dwell time on frequency change.</div>
-                                    <div>📁 <b>Files Browser</b> — Browse recordings at <a href="/files" style="color:#0af;" target="_blank">/files</a> with spectrogram + waveform visualization, grouped by day &amp; hour.</div>
-                                    <div>🔴 <b>REC Indicator</b> — Blinking badge shows when a signal is being recorded.</div>
-                                    <div>🔄 <b>Freq Change Detection</b> — Recorder stops &amp; restarts on frequency change, with 2s dwell before new recording.</div>
-                                    <div style="margin-top:4px;color:#888;">Fork: <a href="https://github.com/dadaloop82/openwebrx" style="color:#0af;" target="_blank">github.com/dadaloop82/openwebrx</a></div>
-                                </div>
-                                <hr />
                                 <div id="openwebrx-messages"></div>
-                            </div>
-                        </div>
-                        <div id="openwebrx-chat-inputs">
-                            <div class="input-group" style="display: flex; justify-content: space-between;">
-                                <input id="openwebrx-chat-name" style="width:15%; margin-right: 0.2rem" placeholder="Name" />
-                                <input id="openwebrx-chat-message" style="width:99%; margin-right: 0.2rem" placeholder="Message" onkeydown="Chat.keyPress(event);" />
-                                <div class="openwebrx-button" onclick="Chat.send();">Send</div>
                             </div>
                         </div>
                     </div>
@@ -731,11 +708,20 @@
     (function() {
         var POLL_INTERVAL = 3000;
         function setLevel(el, value, warnAt, critAt) {
-            el.classList.remove('level-ok', 'level-warn', 'level-crit');
+            el.classList.remove('level-ok', 'level-load', 'level-warn', 'level-crit');
             if (value === null || value === undefined) return;
             if (value >= critAt) el.classList.add('level-crit');
             else if (value >= warnAt) el.classList.add('level-warn');
             else el.classList.add('level-ok');
+        }
+        /* Temperature: 4 thresholds (35-50 optimal, 70-85 load, 90-95 alert, 100 critical) */
+        function setTempLevel(el, value) {
+            el.classList.remove('level-ok', 'level-load', 'level-warn', 'level-crit');
+            if (value === null || value === undefined) return;
+            if (value >= 100) el.classList.add('level-crit');
+            else if (value >= 90)  el.classList.add('level-warn');
+            else if (value >= 70)  el.classList.add('level-load');
+            else                   el.classList.add('level-ok');
         }
         function poll() {
             var xhr = new XMLHttpRequest();
@@ -753,11 +739,15 @@
                         if (d.cpu_temp !== null) {
                             document.getElementById('sys-temp-val').textContent = d.cpu_temp.toFixed(0);
                             tempEl.style.display = '';
+                            /* Dynamic temperature tooltip */
+                            var t = d.cpu_temp;
+                            var label = t >= 100 ? '⛔ CRITICO' : t >= 90 ? '⚠️ Allerta' : t >= 70 ? '💪 Sotto sforzo' : '✅ Ottimale';
+                            tempEl.title = 'CPU: ' + d.cpu_temp.toFixed(1) + '°C — ' + label;
                         } else {
                             tempEl.style.display = 'none';
                         }
                         setLevel(cpuEl,  d.cpu_percent, 60, 85);
-                        setLevel(tempEl, d.cpu_temp,    65, 80);
+                        setTempLevel(tempEl, d.cpu_temp);
                         setLevel(ramEl,  d.ram_percent, 70, 90);
                         if (ramEl) ramEl.title = 'RAM: ' + d.ram_used_mb + ' / ' + d.ram_total_mb + ' MB';
                     } catch(e) {}

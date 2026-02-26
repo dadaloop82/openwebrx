@@ -54,14 +54,16 @@
 
 /* Color thresholds via JS-toggled classes */
 .sys-stat.level-ok    { color: #6fdc6f; }
+.sys-stat.level-load  { color: #60c8ff; }
 .sys-stat.level-warn  { color: #ffc040; }
 .sys-stat.level-crit  { color: #ff4444; }
 
 .sys-stat.level-ok   .sys-icon { opacity: 0.9; }
+.sys-stat.level-load .sys-icon { opacity: 0.9; }
 .sys-stat.level-warn .sys-icon { opacity: 1; }
 .sys-stat.level-crit .sys-icon { opacity: 1; }
 
-/* Pulse animation for critical temp */
+/* Pulse animation for critical values */
 .sys-stat.level-crit .sys-icon {
     animation: sys-pulse 1s ease-in-out infinite;
 }

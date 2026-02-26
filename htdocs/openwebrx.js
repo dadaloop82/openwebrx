@@ -950,11 +950,8 @@ function on_ws_recv(evt) {
                             $('.openwebrx-record-button').css('display', x? '':'none');
                         }
 
-                        if ('allow_chat' in config) {
-                            var x = config['allow_chat'];
-                            $('#openwebrx-chat-inputs').css('display', x? '':'none');
-                            $('#openwebrx-chat-label').html(x? 'Chat':'Log');
-                        }
+                        // Chat removed — panel is always "Log"
+                        $('#openwebrx-chat-label').html('Log');
 
                         if ('receiver_gps' in config) {
                             Utils.setReceiverPos(config['receiver_gps']);
@@ -982,7 +979,7 @@ function on_ws_recv(evt) {
 
                         // Load user interface settings from local storage
                         UI.loadSettings();
-                        Chat.loadSettings();
+                        // Chat removed
 
                         // Initialize keyboard shortcuts
                         Shortcuts.init(document.body);
@@ -1176,27 +1173,12 @@ function on_ws_recv(evt) {
                         divlog(json['value'], true);
                         break;
                     case 'sdr_info':
+                        // Just log a single compact line
                         var s = json['value'];
-                        var lines = [];
-                        // Line 1: Device name and type
-                        var devLine = '📡 <b>' + (s.name || 'SDR') + '</b>';
-                        if (s.type) devLine += ' <span style="opacity:0.6">(' + s.type + ')</span>';
-                        if (s.device) devLine += ' · SN: <span style="color:#ffd740">' + s.device + '</span>';
-                        lines.push(devLine);
-                        // Line 2: Technical details
-                        var cfgLine = '⚙️ ';
-                        if (s.bias_tee) cfgLine += '⚡Bias-T ON · ';
-                        if (s.audio_compression) cfgLine += 'Audio: ' + s.audio_compression.toUpperCase() + ' · ';
-                        if (s.fft_compression) cfgLine += 'FFT: ' + s.fft_compression.toUpperCase() + ' · ';
-                        if (s.fft_size) cfgLine += 'FFT: ' + s.fft_size + 'pt';
-                        cfgLine = cfgLine.replace(/ · $/, '');
-                        if (cfgLine !== '⚙️ ') lines.push(cfgLine);
-                        // Line 3: Profiles count
-                        if (s.profiles_count) lines.push('📋 Profiles: ' + s.profiles_count + ' available');
-                        divlog('<div class="sdr-info-block">' + lines.join('<br/>') + '</div>');
+                        divlog('📡 ' + (s.name || 'SDR') + (s.type ? ' (' + s.type + ')' : '') + ' · ' + (s.profiles_count || '?') + ' profiles');
                         break;
                     case 'chat_message':
-                        Chat.recvMessage(json['name'], json['text'], json['color']);
+                        // Chat removed — ignore
                         break;
                     case 'backoff':
                         divlog("Server is currently busy: " + json['reason'], true);
