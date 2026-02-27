@@ -196,6 +196,8 @@ class Router(object):
             StaticRoute("/api/auto-mode/status", AutoModeStatusController),
             StaticRoute("/api/scheduler/status", SchedulerStatusController),
             StaticRoute("/api/scan/frequencies", ScanFrequenciesController),
+            StaticRoute("/api/scan/frequencies", ScanFrequenciesController, method="POST", options={"action": "postAction"}),
+            StaticRoute("/api/scan/frequencies", ScanFrequenciesController, method="DELETE", options={"action": "deleteAction"}),
             StaticRoute("/api/scan/add", ScanFrequenciesController, method="POST", options={"action": "add"}),
             StaticRoute("/api/scan/remove", ScanFrequenciesController, method="POST", options={"action": "remove"}),
             StaticRoute("/api/gemini/analyze", GeminiAnalyzeController, method="POST"),
@@ -237,6 +239,14 @@ class RequestHandler(BaseHTTPRequestHandler):
 
     def do_DELETE(self):
         self.router.route(self, self._build_request("DELETE"))
+
+    def do_OPTIONS(self):
+        self.send_response(200)
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+        self.send_header("Access-Control-Max-Age", "86400")
+        self.end_headers()
 
     def _build_request(self, method):
         return Request(self.path, method, self.headers)

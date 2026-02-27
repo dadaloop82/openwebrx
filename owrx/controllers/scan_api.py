@@ -146,6 +146,102 @@ class ScanFrequenciesController(Controller):
                 headers={"Access-Control-Allow-Origin": "*"}
             )
 
+    def postAction(self):
+        """POST /api/scan/frequencies - replace full scan config (from frontend modal)"""
+        try:
+            body = self.get_body()
+            if not body:
+                self.send_response(
+                    json.dumps({"error": "Empty request body"}),
+                    content_type="application/json", code=400,
+                    headers={"Access-Control-Allow-Origin": "*"}
+                )
+                return
+
+            data = json.loads(body.decode('utf-8'))
+            config = _load_config()
+            if 'orchestrator' not in config:
+                config['orchestrator'] = {}
+
+            if 'frequencies' in data:
+                config['orchestrator']['frequencies'] = data['frequencies']
+            if 'scan_enabled' in data:
+                config['orchestrator']['enabled'] = data['scan_enabled']
+            if 'silence_timeout_seconds' in data:
+                config['orchestrator']['silence_timeout'] = data['silence_timeout_seconds']
+
+            _save_config(config)
+
+            try:
+                from owrx.auto_mode_orchestrator import AutoModeOrchestrator
+                orch = AutoModeOrchestrator.get_instance()
+                orch.frequencies = config['orchestrator'].get('frequencies', [])
+            except Exception:
+                pass
+
+            self.send_response(
+                json.dumps({"success": True, "total": len(config['orchestrator'].get('frequencies', []))}),
+                content_type="application/json",
+                headers={"Access-Control-Allow-Origin": "*"}
+            )
+        except Exception as e:
+            logger.error("Error in postAction: %s", e, exc_info=True)
+            self.send_response(
+                json.dumps({"error": str(e)}),
+                content_type="application/json", code=500,
+                headers={"Access-Control-Allow-Origin": "*"}
+            )
+
+    def deleteAction(self):
+        """DELETE /api/scan/frequencies - remove frequency by index"""
+        try:
+            body = self.get_body()
+            if not body:
+                self.send_response(
+                    json.dumps({"error": "Empty request body"}),
+                    content_type="application/json", code=400,
+                    headers={"Access-Control-Allow-Origin": "*"}
+                )
+                return
+
+            data = json.loads(body.decode('utf-8'))
+            index = int(data.get('index', -1))
+
+            config = _load_config()
+            freqs = config.get('orchestrator', {}).get('frequencies', [])
+
+            if index < 0 or index >= len(freqs):
+                self.send_response(
+                    json.dumps({"error": "Index out of range"}),
+                    content_type="application/json", code=400,
+                    headers={"Access-Control-Allow-Origin": "*"}
+                )
+                return
+
+            removed = freqs.pop(index)
+            config['orchestrator']['frequencies'] = freqs
+            _save_config(config)
+
+            try:
+                from owrx.auto_mode_orchestrator import AutoModeOrchestrator
+                orch = AutoModeOrchestrator.get_instance()
+                orch.frequencies = freqs
+            except Exception:
+                pass
+
+            self.send_response(
+                json.dumps({"success": True, "removed": removed, "total": len(freqs)}),
+                content_type="application/json",
+                headers={"Access-Control-Allow-Origin": "*"}
+            )
+        except Exception as e:
+            logger.error("Error in deleteAction: %s", e, exc_info=True)
+            self.send_response(
+                json.dumps({"error": str(e)}),
+                content_type="application/json", code=500,
+                headers={"Access-Control-Allow-Origin": "*"}
+            )
+
     def remove(self):
         """POST /api/scan/remove - remove a frequency from the scan list"""
         try:
