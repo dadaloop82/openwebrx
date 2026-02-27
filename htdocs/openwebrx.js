@@ -1170,7 +1170,7 @@ function on_ws_recv(evt) {
                         }
                         break;
                     case 'log_message':
-                        divlog(json['value'], true);
+                        divlog(json['value']);
                         break;
                     case 'sdr_info':
                         // Just log a single compact line

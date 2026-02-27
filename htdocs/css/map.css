@@ -95,3 +95,60 @@ ul {
     text-align: center;
     white-space: nowrap;
 }
+
+/* ============================================================
+   APRS / AIS / SONDE flag tooltips (permanent label per marker)
+   ============================================================ */
+
+.aprs-flag-tooltip {
+    background  : rgba(15, 30, 60, 0.90);
+    border      : 1px solid rgba(100, 170, 255, 0.65);
+    border-radius: 4px;
+    box-shadow  : 2px 2px 6px rgba(0,0,0,0.55);
+    color       : #e8f0ff;
+    font-size   : 11px;
+    line-height : 1.35;
+    padding     : 3px 7px;
+    white-space : nowrap;
+    pointer-events: none;
+}
+
+/* Leaflet adds a little arrow triangle before the tooltip */
+.leaflet-tooltip-right.aprs-flag-tooltip::before {
+    border-right-color: rgba(100, 170, 255, 0.65);
+}
+.leaflet-tooltip-left.aprs-flag-tooltip::before {
+    border-left-color: rgba(100, 170, 255, 0.65);
+}
+
+/* Callsign – prominent, blue-tinted */
+.aprs-flag-call {
+    font-weight : bold;
+    font-size   : 12px;
+    color       : #7ec8ff;
+    display     : inline;
+}
+
+/* Mode badge (AIS, SONDE, …) */
+.aprs-flag-mode {
+    font-size      : 9px;
+    font-weight    : bold;
+    color          : #fff;
+    background     : rgba(80, 130, 220, 0.75);
+    border-radius  : 3px;
+    padding        : 0 3px;
+    vertical-align : middle;
+    margin-left    : 3px;
+}
+
+/* Comment / altitude / vspeed – second line */
+.aprs-flag-detail {
+    display      : block;
+    font-size    : 10px;
+    color        : #aac8ee;
+    max-width    : 180px;
+    overflow     : hidden;
+    text-overflow: ellipsis;
+    white-space  : nowrap;
+    margin-top   : 1px;
+}

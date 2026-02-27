@@ -176,7 +176,7 @@ class Modes(object):
         Js8Mode("js8", "JS8Call"),
         DigitalMode(
             "packet",
-            "Packet",
+            "Packet / APRS",
             underlying=["empty"], #["nfm", "usb", "lsb"],
             bandpass=Bandpass(-6250, 6250),
             requirements=["packet"],

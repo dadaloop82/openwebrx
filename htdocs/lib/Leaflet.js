@@ -62,7 +62,48 @@ LMarker.prototype.setMarkerPosition = function(title, lat, lon) {
 function LFeatureMarker() { $.extend(this, new LMarker(), new FeatureMarker()); }
 
 // Leaflet-Specific AprsMarker
-function LAprsMarker () { $.extend(this, new LMarker(), new AprsMarker()); }
+function LAprsMarker () {
+    $.extend(this, new LMarker(), new AprsMarker());
+    // Override setMarkerPosition to keep permanent flag tooltip up to date
+    var _origSMP = this.setMarkerPosition;
+    var _self = this;
+    this.setMarkerPosition = function(title, lat, lon) {
+        _origSMP.call(_self, title, lat, lon);
+        _self._refreshFlagTooltip(title);
+    };
+}
+
+LAprsMarker.prototype._refreshFlagTooltip = function(callsign) {
+    // Callsign line
+    var html = '<span class="aprs-flag-call">' + callsign + '</span>';
+
+    // Mode tag (show if not plain APRS to help identify AIS / SONDE etc.)
+    if (this.mode && this.mode !== 'APRS') {
+        html += ' <span class="aprs-flag-mode">' + this.mode + '</span>';
+    }
+
+    // Comment or altitude as second line
+    if (this.comment) {
+        var c = this.comment.length > 32 ? this.comment.substr(0, 30) + '\u2026' : this.comment;
+        html += '<span class="aprs-flag-detail">' + c + '</span>';
+    } else if (this.altitude > 0) {
+        html += '<span class="aprs-flag-detail">\u2B06 ' + Math.round(this.altitude) + ' m</span>';
+    } else if (this.vspeed) {
+        html += '<span class="aprs-flag-detail">vspd ' + this.vspeed.toFixed(1) + ' m/s</span>';
+    }
+
+    if (!this._marker.getTooltip()) {
+        this._marker.bindTooltip(html, {
+            permanent  : true,
+            direction  : 'right',
+            offset     : [14, 0],
+            className  : 'aprs-flag-tooltip',
+            opacity    : 1
+        });
+    } else {
+        this._marker.setTooltipContent(html);
+    }
+};
 
 // Leaflet-Specific AircraftMarker
 function LAircraftMarker () { $.extend(this, new LMarker(), new AircraftMarker()); }
