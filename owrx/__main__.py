@@ -175,12 +175,14 @@ Support and info:       https://groups.io/g/openwebrx
     logger.info("🟡 Markers.start() completed")
 
     # Initialize recording scheduler
-    try:
-        from owrx.recording_scheduler import init_recording_scheduler
-        init_recording_scheduler()
-        logger.info("🟡 RecordingScheduler initialized")
-    except Exception as e:
-        logger.error("Failed to initialize RecordingScheduler: %s", e)
+    # DISABILITATO: RecordingScheduler usa ffmpeg -f pulse (PulseAudio) che non funziona con SDR.
+    # SquelchRecorder gestisce già la registrazione audio durante il dwell dell'orchestrator.
+    # try:
+    #     from owrx.recording_scheduler import init_recording_scheduler
+    #     init_recording_scheduler()
+    #     logger.info("🟡 RecordingScheduler initialized")
+    # except Exception as e:
+    #     logger.error("Failed to initialize RecordingScheduler: %s", e)
 
     # Report server started
     reportServerState("ServerStarted")
@@ -218,13 +220,13 @@ Support and info:       https://groups.io/g/openwebrx
     except:
         pass
 
-    # Shutdown recording scheduler
-    try:
-        from owrx.recording_scheduler import RecordingScheduler
-        scheduler = RecordingScheduler.get_instance()
-        scheduler.stop()
-    except:
-        pass
+    # Shutdown recording scheduler (DISABILITATO — vedi sopra)
+    # try:
+    #     from owrx.recording_scheduler import RecordingScheduler
+    #     scheduler = RecordingScheduler.get_instance()
+    #     scheduler.stop()
+    # except:
+    #     pass
 
     Services.stop()
     SdrService.stopAllSources()

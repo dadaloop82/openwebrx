@@ -24,7 +24,17 @@ class SchedulerStatusController(Controller):
     def indexAction(self):
         try:
             from owrx.recording_scheduler import RecordingScheduler
-            scheduler = RecordingScheduler.get_instance()
+            # Only return status if already initialized - don't lazy-create
+            if RecordingScheduler.instance is None:
+                self.send_response(
+                    json.dumps({"running": False, "disabled": True,
+                                "message": "RecordingScheduler disabled"},
+                               default=str),
+                    content_type="application/json",
+                    headers={"Access-Control-Allow-Origin": "*"}
+                )
+                return
+            scheduler = RecordingScheduler.instance
             status = scheduler.get_status()
 
             self.send_response(

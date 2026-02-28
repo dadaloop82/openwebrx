@@ -105,19 +105,36 @@ class AutoTuner(SdrSourceEventClient):
         Returns the profile_id string, or None.
         """
         best = None
-        for p_id, profile in source.getProfiles().items():
-            if "center_freq" not in profile or "samp_rate" not in profile:
-                continue
-            cf = profile["center_freq"]
-            sr = profile["samp_rate"]
-            half = sr / 2
-            if cf - half <= frequency <= cf + half:
-                # This profile covers the frequency
-                mod = profile["modulation"].upper() if "modulation" in profile else ""
-                if mode and mod == mode.upper():
-                    return p_id          # exact match on mode → use it
-                if best is None:
-                    best = p_id          # first match
+        try:
+            profiles = source.getProfiles()
+            # profiles is a PropertyManager — use .items() if available,
+            # otherwise iterate as dict
+            if hasattr(profiles, 'items'):
+                profile_items = list(profiles.items())
+            elif isinstance(profiles, dict):
+                profile_items = list(profiles.items())
+            else:
+                logger.warning("Profiles is %s, cannot iterate", type(profiles).__name__)
+                return None
+
+            for p_id, profile in profile_items:
+                try:
+                    if "center_freq" not in profile or "samp_rate" not in profile:
+                        continue
+                    cf = profile["center_freq"]
+                    sr = profile["samp_rate"]
+                    half = sr / 2
+                    if cf - half <= frequency <= cf + half:
+                        # This profile covers the frequency
+                        mod = profile["modulation"].upper() if "modulation" in profile else ""
+                        if mode and mod == mode.upper():
+                            return p_id          # exact match on mode → use it
+                        if best is None:
+                            best = p_id          # first match
+                except Exception:
+                    continue
+        except Exception as e:
+            logger.error("Error scanning profiles: %s", e, exc_info=True)
         return best
 
     def _find_any_source_and_profile(self, frequency, mode=None):
@@ -130,14 +147,30 @@ class AutoTuner(SdrSourceEventClient):
             sources = SdrService.getActiveSources()
             if not sources:
                 return None, None
-            for s_id, source in sources.items():
+
+            # ActiveSdrSources is a PropertyManager — use .items() if available
+            if hasattr(sources, 'items'):
+                source_items = list(sources.items())
+            elif isinstance(sources, dict):
+                source_items = list(sources.items())
+            else:
+                logger.error("getActiveSources returned %s (not dict-like), "
+                             "falling back to getFirstSource",
+                             type(sources).__name__)
+                src = SdrService.getFirstSource()
+                if src is None:
+                    return None, None
+                p_id = self._find_matching_profile(src, frequency, mode)
+                return src, p_id
+
+            for s_id, source in source_items:
                 p_id = self._find_matching_profile(source, frequency, mode)
                 if p_id is not None:
                     return source, p_id
             # Fallback: just use first source, no profile switch
             return SdrService.getFirstSource(), None
         except Exception as e:
-            logger.error("Error searching sources: %s", e)
+            logger.error("Error searching sources: %s", e, exc_info=True)
             return None, None
 
     # ------------------------------------------------------------------

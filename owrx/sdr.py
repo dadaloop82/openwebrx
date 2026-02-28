@@ -187,7 +187,15 @@ class AvailableProfiles(PropertyReadOnly):
                 self._layer[concat_p_id] = "{} {}".format(source.getName(), name)
 
     def _addSource(self, key, source: SdrSource):
-        for p_id, p in source.getProfiles().items():
+        profiles = source.getProfiles()
+        if hasattr(profiles, 'items'):
+            items = profiles.items()
+        elif isinstance(profiles, list):
+            items = enumerate(profiles)
+        else:
+            logger.warning("Unexpected profiles type for source %s: %s", key, type(profiles))
+            return
+        for p_id, p in items:
             self._addProfile(key, source, p_id, p)
         self.subscriptions[key] = [
             source.getProps().wireProperty("name", partial(self.handleSdrNameChange, key, source)),

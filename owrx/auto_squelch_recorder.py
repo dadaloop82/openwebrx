@@ -34,10 +34,6 @@ DIGITAL_MODES = frozenset({
     'dmr', 'dstar', 'nxdn', 'ysf', 'm17', 'freedv',
 })
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
 logger = logging.getLogger(__name__)
 
 
@@ -71,12 +67,14 @@ class SquelchRecorder:
         self.last_signal_time = None
         self.silence_timer = None
         self.chunk_count = 0
+        self._rec_lock = threading.Lock()  # Instance-level lock for recording state
         
         # Frequency change tracking
         self._last_seen_freq = None
         self._freq_stable_since = None  # When the current frequency was first seen
         self._current_mode = None  # Set by external caller (e.g. wav.py or orchestrator)
         self._recording_disabled_for_mode = False
+        self._station_name = None  # Set by orchestrator for event-aware recording titles
         
         self.cleanup_thread = threading.Thread(target=self._cleanup_worker, daemon=True)
         self.cleanup_thread.start()
@@ -147,15 +145,25 @@ class SquelchRecorder:
         timestamp_local = now_local.strftime('%Y%m%d_%H%M%S')
         self._recording_utc_str = now_utc.strftime('%H:%M:%S UTC')
         
+        # Build filename with station name if available
+        parts = []
+        if self._station_name:
+            # Sanitize station name for filename
+            safe_name = self._station_name.replace('/', '-').replace('\\', '-')
+            safe_name = ''.join(c for c in safe_name if c.isalnum() or c in ' ._-()').strip()
+            safe_name = safe_name[:50]  # limit length
+            if safe_name:
+                parts.append(safe_name)
         if frequency_hz:
             freq_mhz = frequency_hz / 1_000_000
-            filename = f"{freq_mhz:.4f}MHz_{timestamp_local}.mp3"
-        else:
-            filename = f"REC_{timestamp_local}.mp3"
+            parts.append(f"{freq_mhz:.4f}MHz")
+        parts.append(timestamp_local)
+        filename = '_'.join(parts) + '.mp3' if parts else f"REC_{timestamp_local}.mp3"
         
         self.current_filepath = self.recordings_dir / filename
         self.current_wav_path = self.recordings_dir / f"temp_{timestamp_local}.wav"
         self.current_frequency_hz = frequency_hz
+        self._recording_station_name = self._station_name  # snapshot for MP3 metadata
         self.recording_start_time = time.time()
         self.last_signal_time = time.time()
         self.is_recording = True
@@ -219,7 +227,7 @@ class SquelchRecorder:
             ).start()
     
     def _convert_to_mp3(self, wav_path: Path, mp3_path: Path):
-        """Convert WAV to MP3 using ffmpeg"""
+        """Convert WAV to MP3 using ffmpeg, embedding station name as ID3 metadata"""
         try:
             if not wav_path.exists():
                 logger.error("WAV file not found: %s", wav_path)
@@ -228,8 +236,24 @@ class SquelchRecorder:
             cmd = [
                 'ffmpeg', '-y', '-i', str(wav_path),
                 '-codec:a', 'libmp3lame', '-qscale:a', '2',
-                str(mp3_path)
             ]
+            
+            # Add ID3 metadata if station name is available
+            station = getattr(self, '_recording_station_name', None)
+            utc_str = getattr(self, '_recording_utc_str', '')
+            freq_hz = self.current_frequency_hz
+            freq_str = f"{freq_hz/1e6:.4f} MHz" if freq_hz else "unknown"
+            
+            if station:
+                cmd.extend(['-metadata', f'title={station} - {freq_str}'])
+                cmd.extend(['-metadata', f'artist={station}'])
+                cmd.extend(['-metadata', f'album=OpenWebRX SDR Recordings'])
+                cmd.extend(['-metadata', f'comment={freq_str} {utc_str}'])
+            else:
+                cmd.extend(['-metadata', f'title={freq_str} {utc_str}'])
+                cmd.extend(['-metadata', f'album=OpenWebRX SDR Recordings'])
+            
+            cmd.append(str(mp3_path))
             
             result = subprocess.run(
                 cmd,
@@ -262,7 +286,7 @@ class SquelchRecorder:
         self.silence_timer.start()
     
     def _on_silence_timeout(self):
-        with self._lock:
+        with self._rec_lock:
             if self.is_recording and self.last_signal_time:
                 elapsed = time.time() - self.last_signal_time
                 if elapsed >= SILENCE_TIMEOUT:
@@ -304,6 +328,14 @@ class SquelchRecorder:
             return False
         return (time.time() - self._freq_stable_since) >= FREQ_DWELL_SECONDS
     
+    def set_station_info(self, name: Optional[str], frequency_hz: Optional[int] = None):
+        """Set station/event name for the next recording.
+        Called by the orchestrator before each dwell so that
+        filenames and MP3 metadata contain the station name."""
+        self._station_name = name
+        if frequency_hz is not None:
+            self.current_frequency_hz = frequency_hz
+
     def set_current_mode(self, mode: Optional[str]):
         """Set the current demodulation mode. Used to skip recording on digital modes."""
         if mode is None:
@@ -345,7 +377,7 @@ class SquelchRecorder:
             has_signal = rms > AUDIO_RMS_THRESHOLD
             int16_data_ready = None  # will convert lazily
         
-        with self._lock:
+        with self._rec_lock:
             # --- Frequency change detection ---
             freq_changed = self._has_frequency_changed(frequency_hz)
             
