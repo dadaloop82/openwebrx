@@ -83,12 +83,22 @@ class SdrProfileCarousel(PropertyCarousel):
         if "profiles" not in props:
             return
 
-        for profile_id, profile in props["profiles"].items():
-            self.addLayer(profile_id, profile)
+        profiles = props["profiles"]
+        if hasattr(profiles, 'items'):
+            for profile_id, profile in profiles.items():
+                self.addLayer(profile_id, profile)
+        elif isinstance(profiles, list):
+            for idx, profile in enumerate(profiles):
+                if isinstance(profile, dict) or hasattr(profile, '__getitem__'):
+                    self.addLayer(str(idx), profile)
+        else:
+            logger.warning("SdrProfileCarousel: unexpected profiles type: %s", type(profiles))
+            return
         # activate first available profile
         self.switch()
 
-        props["profiles"].wire(self.handleProfileUpdate)
+        if hasattr(profiles, 'wire'):
+            profiles.wire(self.handleProfileUpdate)
 
     def addLayer(self, profile_id, profile):
         profile_stack = PropertyStack()
@@ -229,7 +239,11 @@ class SdrSource(ABC):
     def validateProfiles(self):
         props = PropertyStack()
         props.addLayer(1, self.props)
-        for id, p in self.props["profiles"].items():
+        profiles = self.props["profiles"]
+        if not hasattr(profiles, 'items'):
+            self.logger.warning("validateProfiles: profiles is not a dict-like (%s), skipping", type(profiles))
+            return
+        for id, p in profiles.items():
             props.replaceLayer(0, p)
             if "center_freq" not in props:
                 self.logger.warning('Profile "%s" does not specify a center_freq', id)
@@ -273,7 +287,12 @@ class SdrSource(ABC):
 
     def activateProfile(self, profile_id):
         try:
-            profile_name = self.getProfiles()[profile_id]["name"]
+            profiles = self.getProfiles()
+            if hasattr(profiles, '__getitem__') and not isinstance(profiles, list):
+                profile_name = profiles[profile_id]["name"]
+            else:
+                profile_name = str(profile_id)
+                self.logger.warning("activateProfile: profiles is %s, cannot look up name", type(profiles))
             self.logger.debug("activating profile \"%s\" for \"%s\"", profile_name, self.getName())
             self.profileCarousel.switch(profile_id)
             self.reportProfileChange()
@@ -296,7 +315,15 @@ class SdrSource(ABC):
         return self.props["name"]
 
     def getProfileName(self):
-        return self.getProfiles()[self.getProfileId()]["name"]
+        try:
+            profiles = self.getProfiles()
+            profile_id = self.getProfileId()
+            if hasattr(profiles, '__getitem__') and not isinstance(profiles, list):
+                return profiles[profile_id]["name"]
+            else:
+                return str(profile_id)
+        except (KeyError, TypeError, IndexError):
+            return "unknown"
 
     def getProps(self):
         return self.props
@@ -485,9 +512,14 @@ class SdrSource(ABC):
     def isLocked(self, profile_id = None):
         # if target profile ID given, check that profile
         if profile_id is not None:
-            profile = self.getProfiles()[profile_id]
-            if "key_locked" in profile and profile["key_locked"]:
-                return True
+            try:
+                profiles = self.getProfiles()
+                if hasattr(profiles, '__getitem__') and not isinstance(profiles, list):
+                    profile = profiles[profile_id]
+                    if "key_locked" in profile and profile["key_locked"]:
+                        return True
+            except (KeyError, TypeError, IndexError):
+                pass
         # check current profile and the overall source setting
         return "key_locked" in self.props and self.props["key_locked"]
 

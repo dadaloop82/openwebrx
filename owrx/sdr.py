@@ -35,10 +35,11 @@ class MappedSdrSources(PropertyDelegator):
     def _addSource(self, key, value):
         self.handleDeviceUpdate(key, value)
         updateMethod = partial(self.handleDeviceUpdate, key, value)
-        self.subscriptions[key] = [
-            value.filter("type", "profiles").wire(updateMethod),
-            value["profiles"].wire(updateMethod)
-        ]
+        subs = [value.filter("type", "profiles").wire(updateMethod)]
+        profiles = value["profiles"]
+        if hasattr(profiles, 'wire'):
+            subs.append(profiles.wire(updateMethod))
+        self.subscriptions[key] = subs
 
     def isDeviceValid(self, device):
         return self._sdrTypeAvailable(device) and self._hasProfiles(device)
@@ -170,8 +171,14 @@ class AvailableProfiles(PropertyReadOnly):
         for p_id in list(self._layer.keys()):
             source_id, profile_id = p_id.split("|")
             if source_id == s_id:
-                profile = profiles[profile_id]
-                self._layer[p_id] = "{} {}".format(name, profile["name"])
+                try:
+                    if hasattr(profiles, '__getitem__') and not isinstance(profiles, list):
+                        profile = profiles[profile_id]
+                        self._layer[p_id] = "{} {}".format(name, profile["name"])
+                    else:
+                        self._layer[p_id] = "{} {}".format(name, profile_id)
+                except (KeyError, TypeError, IndexError):
+                    self._layer[p_id] = "{} {}".format(name, profile_id)
 
     def handleProfileChange(self, source_id, source: SdrSource, changes):
         for key, value in changes.items():
@@ -199,14 +206,22 @@ class AvailableProfiles(PropertyReadOnly):
             self._addProfile(key, source, p_id, p)
         self.subscriptions[key] = [
             source.getProps().wireProperty("name", partial(self.handleSdrNameChange, key, source)),
-            source.getProfiles().wire(partial(self.handleProfileChange, key, source)),
         ]
+        if hasattr(profiles, 'wire'):
+            self.subscriptions[key].append(
+                profiles.wire(partial(self.handleProfileChange, key, source))
+            )
 
     def _addProfile(self, s_id, source: SdrSource, p_id, profile):
-        self._layer["{}|{}".format(s_id, p_id)] = "{} {}".format(source.getName(), profile["name"])
+        try:
+            profile_name = profile["name"] if hasattr(profile, '__getitem__') else str(p_id)
+        except (KeyError, TypeError):
+            profile_name = str(p_id)
+        self._layer["{}|{}".format(s_id, p_id)] = "{} {}".format(source.getName(), profile_name)
         if s_id not in self.profileSubscriptions:
             self.profileSubscriptions[s_id] = {}
-        self.profileSubscriptions[s_id][p_id] = profile.wireProperty("name", partial(self.handleProfileNameChange, s_id, source, p_id))
+        if hasattr(profile, 'wireProperty'):
+            self.profileSubscriptions[s_id][p_id] = profile.wireProperty("name", partial(self.handleProfileNameChange, s_id, source, p_id))
 
     def _removeSource(self, key):
         for profile_id in list(self._layer.keys()):
@@ -289,6 +304,17 @@ class SdrService(object):
         result = {}
         for s_id, source in SdrService.getAllSources().items():
             if source.isEnabled() and not source.isFailed():
-                for p_id, profile in source.getProfiles().items():
-                    result["{}|{}".format(s_id, p_id)] = "{} {}".format(source.getName(), profile["name"])
+                profiles = source.getProfiles()
+                if hasattr(profiles, 'items'):
+                    for p_id, profile in profiles.items():
+                        try:
+                            result["{}|{}".format(s_id, p_id)] = "{} {}".format(source.getName(), profile["name"])
+                        except (KeyError, TypeError):
+                            result["{}|{}".format(s_id, p_id)] = "{} {}".format(source.getName(), p_id)
+                elif isinstance(profiles, list):
+                    for idx, profile in enumerate(profiles):
+                        try:
+                            result["{}|{}".format(s_id, idx)] = "{} {}".format(source.getName(), profile["name"])
+                        except (KeyError, TypeError):
+                            result["{}|{}".format(s_id, idx)] = "{} {}".format(source.getName(), idx)
         return result

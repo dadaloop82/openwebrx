@@ -25,7 +25,7 @@ from owrx.controllers.settings.bookmarks import BookmarksController
 from owrx.controllers.session import SessionController
 from owrx.controllers.profile import ProfileController
 from owrx.controllers.imageupload import ImageUploadController
-from owrx.controllers.auto_mode import AutoModeStatusController
+from owrx.controllers.auto_mode import AutoModeStatusController, AutoModeRatingsController
 from owrx.controllers.recordings import RecordingsPageController, SchedulerStatusController
 from owrx.controllers.scan_api import ScanFrequenciesController
 from owrx.controllers.gemini_api import GeminiAnalyzeController, GeminiCaptureController, GeminiBookmarkController
@@ -194,6 +194,7 @@ class Router(object):
             StaticRoute("/clients", ClientController),
             StaticRoute("/services", ServiceController),
             StaticRoute("/api/auto-mode/status", AutoModeStatusController),
+            StaticRoute("/api/auto-mode/ratings", AutoModeRatingsController),
             StaticRoute("/api/scheduler/status", SchedulerStatusController),
             StaticRoute("/api/scan/frequencies", ScanFrequenciesController),
             StaticRoute("/api/scan/frequencies", ScanFrequenciesController, method="POST", options={"action": "postAction"}),

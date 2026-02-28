@@ -23,7 +23,7 @@ MAX_AGE_DAYS = 7
 CLEANUP_INTERVAL = 300
 SILENCE_TIMEOUT = 3.0
 FREQ_DWELL_SECONDS = 2.0  # Must stay on a frequency this long before recording starts
-AUDIO_RMS_THRESHOLD = 0.015  # Float threshold (range -1.0 to 1.0)
+AUDIO_RMS_THRESHOLD = 0.010  # Float threshold (range -1.0 to 1.0) - lowered for weak HF
 
 # Digital modes where squelch recording makes no sense (decoded as text, not voice)
 DIGITAL_MODES = frozenset({
