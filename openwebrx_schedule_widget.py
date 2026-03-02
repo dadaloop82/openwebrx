@@ -455,7 +455,8 @@ body{{font-family:Arial,sans-serif;background:linear-gradient(135deg,#1e3c72,#2a
 .tx-freq::after{{content:'';font-size:0.6em;color:#64B5F6;margin-left:10px;opacity:0.8}}
 .tx-desc{{opacity:0.9;margin-bottom:10px}}
 .tx-stats{{display:flex;gap:15px;margin-bottom:10px;font-size:0.9em;align-items:center;flex-wrap:wrap}}
-.auto-quality-container{{display:inline-flex;align-items:center;gap:6px}}
+.auto-quality-container{{display:flex;flex-direction:column;gap:4px;flex:1 1 100%}}
+.aq-row{{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap}}
 .auto-quality-stars{{display:inline-flex;align-items:center;color:#FFD700;cursor:pointer;user-select:none;font-size:1.8em}}
 .auto-quality-stars .star{{cursor:pointer;transition:all 0.2s;font-size:0.72em}}
 .auto-quality-stars .star:hover{{transform:scale(1.4);filter:drop-shadow(0 0 5px #FFD700)}}
@@ -464,7 +465,7 @@ body{{font-family:Arial,sans-serif;background:linear-gradient(135deg,#1e3c72,#2a
 .aq-info.aq-low{{background:rgba(255,152,0,0.3);color:#FFB74D}}
 .aq-info.aq-mid{{background:rgba(255,193,7,0.3);color:#FFF176}}
 .aq-info.aq-high{{background:rgba(76,175,80,0.35);color:#A5D6A7}}
-.rec-cards{{margin-top:8px}}
+.rec-cards{{margin-top:4px;width:100%}}
 .rec-card{{background:#0d1117;border-radius:10px;margin-bottom:8px;overflow:hidden;border:1px solid rgba(255,255,255,0.08);transition:all 0.2s}}
 .rec-card:hover{{border-color:rgba(255,87,34,0.4);box-shadow:0 0 12px rgba(255,87,34,0.15)}}
 .rec-card-header{{display:flex;align-items:center;gap:6px;padding:7px 12px;background:rgba(255,255,255,0.04);flex-wrap:wrap;font-size:0.8em;border-bottom:1px solid rgba(255,255,255,0.06)}}
@@ -1132,7 +1133,7 @@ async function saveScanSettings(){{
 
   function renderQualityBadge(r, key){{
     if(!r){{
-      return renderBigStars(key, 0) + '<span class="aq-info" title="Clicca le stelle per votare">⏳ In attesa</span>';
+      return '<div class="aq-row">'+renderBigStars(key, 0) + '<span class="aq-info" title="Clicca le stelle per votare">⏳ In attesa</span></div>';
     }}
     const total = r.total_ratings || 0;
     const nr = r.consecutive_nr || 0;
@@ -1143,19 +1144,19 @@ async function saveScanSettings(){{
     const detailStr = total > 0 ? ' ('+scored+'/'+total+' con segnale)' : '';
     
     if(!enabled){{
-      return renderBigStars(key, 0) + '<span class="aq-info aq-disabled" title="Disabilitato dopo '+nr+' NR consecutivi ('+nrTotal+' NR su '+total+')">\u26d4 Disabilitato'+detailStr+'</span>' + renderRecordingCards(r.recordings, r.last_positive);
+      return '<div class="aq-row">'+renderBigStars(key, 0) + '<span class="aq-info aq-disabled" title="Disabilitato dopo '+nr+' NR consecutivi ('+nrTotal+' NR su '+total+')">⛔ Disabilitato'+detailStr+'</span></div>' + renderRecordingCards(r.recordings, r.last_positive);
     }}
     const displayScore = avg !== null && avg !== undefined ? Math.round(avg) : 0;
     const starsHtml = renderBigStars(key, displayScore);
     
     if(total === 0){{
-      return starsHtml + '<span class="aq-info" title="Clicca le stelle per votare">⏳ In attesa</span>';
+      return '<div class="aq-row">'+starsHtml + '<span class="aq-info" title="Clicca le stelle per votare">⏳ In attesa</span></div>';
     }}
     if(avg === null || avg === undefined || nr >= 3){{
-      return starsHtml + '<span class="aq-info aq-nr" title="Segnale assente x'+nr+' consecutivi ('+nrTotal+' NR su '+total+' scansioni)">📡 ×'+nr+detailStr+'</span>' + renderRecordingCards(r.recordings, r.last_positive);
+      return '<div class="aq-row">'+starsHtml + '<span class="aq-info aq-nr" title="Segnale assente x'+nr+' consecutivi ('+nrTotal+' NR su '+total+' scansioni)">📡 ×'+nr+detailStr+'</span></div>' + renderRecordingCards(r.recordings, r.last_positive);
     }}
     const cls = avg <= 1.5 ? 'aq-low' : (avg <= 3.0 ? 'aq-mid' : 'aq-high');
-    return starsHtml + '<span class="aq-info '+cls+'" title="Media auto: '+avg.toFixed(1)+'/5 — '+scored+' con segnale, '+nrTotal+' NR su '+total+' scansioni">'+avg.toFixed(1)+'/5'+detailStr+'</span>' + renderRecordingCards(r.recordings, r.last_positive);
+    return '<div class="aq-row">'+starsHtml + '<span class="aq-info '+cls+'" title="Media auto: '+avg.toFixed(1)+'/5 — '+scored+' con segnale, '+nrTotal+' NR su '+total+' scansioni">'+avg.toFixed(1)+'/5'+detailStr+'</span></div>' + renderRecordingCards(r.recordings, r.last_positive);
   }}
   
   // Aggregate ratings by description across ALL frequencies
@@ -1311,7 +1312,7 @@ async function saveScanSettings(){{
                 stars_big_dis = ""
                 for sn in range(1, 6):
                     stars_big_dis += f'<span class="star" onclick="rateAutoQuality(event, \'{rating_key_js}\', {sn})">☆</span>'
-                auto_quality_html = f'<span class="auto-quality-stars">{stars_big_dis}</span><span class="aq-info aq-disabled" title="Disabilitato dopo {nr} segnali assenti consecutivi ({nr_total} NR su {total})">⛔ Disabilitato {detail_str}</span>'
+                auto_quality_html = f'<div class="aq-row"><span class="auto-quality-stars">{stars_big_dis}</span><span class="aq-info aq-disabled" title="Disabilitato dopo {nr} segnali assenti consecutivi ({nr_total} NR su {total})">⛔ Disabilitato {detail_str}</span></div>'
                 cls += " disabled"
             else:
                 # Render big clickable stars based on avg_score
@@ -1330,13 +1331,13 @@ async function saveScanSettings(){{
                     info = f'<span class="aq-info aq-nr" title="Segnale assente x{nr}">📡 ×{nr} {detail_str}</span>'
                 else:
                     info = '<span class="aq-info" title="Nessuna valutazione ancora">⏳ In attesa</span>'
-                auto_quality_html = f'<span class="auto-quality-stars">{stars_big}</span>{info}'
+                auto_quality_html = f'<div class="aq-row"><span class="auto-quality-stars">{stars_big}</span>{info}</div>'
         else:
             # No rating at all - show empty clickable stars
             stars_big = ""
             for sn in range(1, 6):
                 stars_big += f'<span class="star" onclick="rateAutoQuality(event, \'{rating_key_js}\', {sn})">☆</span>'
-            auto_quality_html = f'<span class="auto-quality-stars">{stars_big}</span><span class="aq-info" title="Clicca le stelle per votare">⏳ In attesa</span>'
+            auto_quality_html = f'<div class="aq-row"><span class="auto-quality-stars">{stars_big}</span><span class="aq-info" title="Clicca le stelle per votare">⏳ In attesa</span></div>'
         
         heard_class = "" if tx_log['heard'] else "not-heard"
         heard_text = "✅ Ascoltato" if tx_log['heard'] else "⚪ Mai ricevuto"
