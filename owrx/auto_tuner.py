@@ -107,12 +107,14 @@ class AutoTuner(SdrSourceEventClient):
         best = None
         try:
             profiles = source.getProfiles()
-            # profiles is a PropertyManager — use .items() if available,
-            # otherwise iterate as dict
+            # profiles may be a PropertyManager (dict-like with .items()),
+            # a plain dict, or a list (observed at runtime).
             if hasattr(profiles, 'items'):
                 profile_items = list(profiles.items())
             elif isinstance(profiles, dict):
                 profile_items = list(profiles.items())
+            elif isinstance(profiles, list):
+                profile_items = [(str(i), p) for i, p in enumerate(profiles)]
             else:
                 logger.warning("Profiles is %s, cannot iterate", type(profiles).__name__)
                 return None
@@ -295,8 +297,19 @@ class AutoTuner(SdrSourceEventClient):
             try:
                 pid = self._registered_source.getProfileId()
                 profiles = self._registered_source.getProfiles()
-                if pid in profiles:
-                    profile = profiles[pid]
+                # profiles may be dict-like or list
+                profile = None
+                if hasattr(profiles, '__getitem__') and not isinstance(profiles, list):
+                    if pid in profiles:
+                        profile = profiles[pid]
+                elif isinstance(profiles, list):
+                    try:
+                        idx = int(pid)
+                        if 0 <= idx < len(profiles):
+                            profile = profiles[idx]
+                    except (ValueError, TypeError):
+                        pass
+                if profile is not None:
                     original_cf = profile["center_freq"] if "center_freq" in profile else None
                     if original_cf:
                         self._registered_source.setCenterFreq(original_cf)

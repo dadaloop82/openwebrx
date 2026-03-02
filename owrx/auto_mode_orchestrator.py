@@ -687,8 +687,8 @@ class SignalRatingsDB:
                 entry["ratings"] = entry["ratings"][-50:]
 
             # Update consecutive_nr
-            # Scores of "nr" or 1 star (barely noise) count as "not received"
-            if score == "nr" or score == 1:
+            # Scores of "nr" or ≤2 stars (mostly noise) count as "not received"
+            if score == "nr" or (isinstance(score, (int, float)) and score <= 2):
                 entry["consecutive_nr"] = entry.get("consecutive_nr", 0) + 1
             else:
                 entry["consecutive_nr"] = 0
