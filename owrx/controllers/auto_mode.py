@@ -116,6 +116,7 @@ class AutoModeRatingsController(Controller):
                     "ts": r["ts"],
                     "type": r.get("type", "?"),
                     "recording": r.get("recording"),
+                    "audio_quality": r.get("audio_quality"),
                 } for r in positives[-5:]]
                 
                 # Also attach recordings from filesystem matched by frequency

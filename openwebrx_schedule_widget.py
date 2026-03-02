@@ -484,6 +484,11 @@ body{{font-family:Arial,sans-serif;background:linear-gradient(135deg,#1e3c72,#2a
 .rec-card-bottom{{display:flex;align-items:center;gap:6px;padding:4px 10px 6px}}
 .rec-card-bottom audio{{flex:1;height:28px;border-radius:4px;min-width:0}}
 .rec-no-audio{{font-size:0.78em;color:#999;padding:4px 0;font-style:italic}}
+.rc-aq{{font-size:0.75em;padding:1px 6px;border-radius:8px;font-weight:600;white-space:nowrap}}
+.rc-aq small{{font-weight:400;opacity:0.7}}
+.rc-aq-good{{background:rgba(76,175,80,0.25);color:#A5D6A7}}
+.rc-aq-fair{{background:rgba(255,193,7,0.25);color:#FFF176}}
+.rc-aq-poor{{background:rgba(255,82,82,0.25);color:#FF8A80}}
 .tx-heard{{color:#81C784;cursor:pointer;padding:3px 10px;border-radius:15px;background:rgba(255,255,255,0.1);transition:all 0.2s;user-select:none}}
 .tx-heard:hover{{background:rgba(255,255,255,0.2);transform:scale(1.05)}}
 .tx-heard.not-heard{{color:#BDBDBD;opacity:0.8}}
@@ -924,12 +929,12 @@ async function saveScanSettings(){{
       recordings.forEach(rec => {{
         const dateStr = rec.date ? rec.date.substring(6,8)+'/'+rec.date.substring(4,6) : '';
         const timeStr = rec.time ? rec.time.substring(0,2)+':'+rec.time.substring(2,4) : '';
-        let score = 0, src = '';
+        let score = 0, src = '', aq = null;
         if(lastPositive){{
           const match = lastPositive.find(p => p.recording === rec.filename);
-          if(match){{ score = match.score || 0; src = match.type === 'manuale' ? '👤' : '🤖'; usedFiles.add(rec.filename); }}
+          if(match){{ score = match.score || 0; src = match.type === 'manuale' ? '👤' : '🤖'; aq = match.audio_quality || null; usedFiles.add(rec.filename); }}
         }}
-        allRecs.push({{ filename: rec.filename, date: dateStr, time: timeStr, dur: rec.duration_s||0, size: rec.size||0, score: score, src: src }});
+        allRecs.push({{ filename: rec.filename, date: dateStr, time: timeStr, dur: rec.duration_s||0, size: rec.size||0, score: score, src: src, aq: aq }});
       }});
     }}
     if(lastPositive){{
@@ -937,7 +942,7 @@ async function saveScanSettings(){{
         if(p.recording && !usedFiles.has(p.recording)){{
           try{{
             const d = new Date(p.ts);
-            allRecs.push({{ filename: p.recording, date: String(d.getUTCDate()).padStart(2,'0')+'/'+String(d.getUTCMonth()+1).padStart(2,'0'), time: String(d.getUTCHours()).padStart(2,'0')+':'+String(d.getUTCMinutes()).padStart(2,'0'), dur: 0, size: 0, score: p.score||0, src: p.type==='manuale'?'👤':'🤖' }});
+            allRecs.push({{ filename: p.recording, date: String(d.getUTCDate()).padStart(2,'0')+'/'+String(d.getUTCMonth()+1).padStart(2,'0'), time: String(d.getUTCHours()).padStart(2,'0')+':'+String(d.getUTCMinutes()).padStart(2,'0'), dur: 0, size: 0, score: p.score||0, src: p.type==='manuale'?'👤':'🤖', aq: p.audio_quality||null }});
           }}catch(e){{}}
           usedFiles.add(p.recording);
         }}
@@ -959,6 +964,16 @@ async function saveScanSettings(){{
       if(rec.dur > 0) html += '<span class="rc-dur">'+fmtDurRec(rec.dur)+'</span>';
       if(rec.size > 0) html += '<span class="rc-size">'+fmtSize(rec.size)+'</span>';
       if(starsHtml) html += '<span class="rc-score" title="'+(rec.src||'')+'">'+starsHtml+'</span>';
+      /* Audio quality badge from offline DSP analysis */
+      if(rec.aq && rec.aq.audio_score){{
+        const aqs = rec.aq.audio_score;
+        const nl = rec.aq.noise_level || 0;
+        const nPct = Math.round(nl*100);
+        const aqCls = aqs >= 4 ? 'rc-aq-good' : (aqs >= 3 ? 'rc-aq-fair' : 'rc-aq-poor');
+        html += '<span class="rc-aq '+aqCls+'" title="Qualit\u00e0 audio: '+aqs+'/5 &#10;Rumore: '+nPct+'%">';
+        html += '🔊'+aqs+'/5 ';
+        html += '<small>(📣'+nPct+'%)</small></span>';
+      }}
       html += '<a class="rc-dl" href="'+audioUrl+'" download title="Download">⬇</a>';
       html += '</div>';
       /* spectrogram + waveform viz — full width stacked rows */

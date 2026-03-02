@@ -496,6 +496,135 @@ def _signal_ratio_to_stars(ratio: float) -> int:
     return 5
 
 
+# ========================================================================
+#  Offline Audio Quality Analyzer  –  no AI, pure DSP metrics
+# ========================================================================
+
+RECORDINGS_DIR_AQ = "/var/lib/openwebrx/recordings"
+_AQ_SAMPLE_RATE = 16000  # downsample for fast analysis
+
+
+def analyze_recording_quality(mp3_path: str) -> Optional[Dict[str, Any]]:
+    """Analyze an MP3 recording for audio quality using spectral metrics.
+
+    Returns a dict with:
+      - audio_score: int 1-5 (1=pure noise, 5=clean signal)
+      - metrics: {spectral_flatness, spectral_entropy, modulation_index,
+                  autocorrelation_peak, crest_factor}
+      - noise_level: float 0.0 (clean) - 1.0 (pure noise)
+    Returns None if analysis fails.
+    """
+    if not HAS_NUMPY or not HAS_SCIPY:
+        return None
+    from scipy.signal import spectrogram as sp_spectrogram
+
+    try:
+        cmd = [
+            "ffmpeg", "-y", "-loglevel", "error", "-i", mp3_path,
+            "-f", "s16le", "-acodec", "pcm_s16le", "-ac", "1",
+            "-ar", str(_AQ_SAMPLE_RATE), "-"
+        ]
+        r = subprocess.run(cmd, capture_output=True, timeout=30)
+        if r.returncode != 0 or len(r.stdout) < _AQ_SAMPLE_RATE * 2:
+            return None
+        pcm = np.frombuffer(r.stdout, dtype=np.int16).astype(np.float32) / 32768.0
+    except Exception as e:
+        logger.debug("Audio quality: failed to decode %s: %s", mp3_path, e)
+        return None
+
+    if len(pcm) < _AQ_SAMPLE_RATE:
+        return None
+
+    eps = 1e-10
+    sr = _AQ_SAMPLE_RATE
+
+    try:
+        # 1. Spectral flatness (Wiener entropy): noise → ~1.0, tonal → low
+        nperseg = min(2048, len(pcm) // 4)
+        f, t, Sxx = sp_spectrogram(pcm, fs=sr, nperseg=nperseg, noverlap=nperseg // 2)
+        log_mean = np.mean(np.log(Sxx + eps), axis=0)
+        arith_mean = np.log(np.mean(Sxx + eps, axis=0))
+        flatness = float(np.mean(np.exp(log_mean - arith_mean)))
+
+        # 2. Spectral entropy (noise → high, tonal → low)
+        Sxx_norm = Sxx / (np.sum(Sxx, axis=0, keepdims=True) + eps)
+        ent_frames = -np.sum(Sxx_norm * np.log2(Sxx_norm + eps), axis=0)
+        max_ent = np.log2(Sxx.shape[0])
+        entropy = float(np.mean(ent_frames)) / max_ent  # normalized 0-1
+
+        # 3. Modulation index (speech/music > 0.15, noise < 0.10)
+        frame_len = sr // 10  # 100ms frames
+        n_frames = len(pcm) // frame_len
+        if n_frames < 2:
+            return None
+        rms_frames = np.array([
+            np.sqrt(np.mean(pcm[i * frame_len:(i + 1) * frame_len] ** 2))
+            for i in range(n_frames)
+        ])
+        mod_index = float(np.std(rms_frames) / (np.mean(rms_frames) + eps))
+
+        # 4. Autocorrelation peak (periodic signal → high, noise → low)
+        chunk = pcm[:sr * 2]  # first 2 seconds
+        ac = np.correlate(chunk, chunk, "full")
+        ac = ac[len(ac) // 2:]
+        ac = ac / (ac[0] + eps)
+        ac_trimmed = ac[50:800]  # look for periodicity in 20Hz-320Hz range
+        ac_peak = float(np.max(ac_trimmed)) if len(ac_trimmed) > 0 else 0.0
+
+        # 5. Crest factor (noise tends to be high ~5+, clean speech ~3.5-4)
+        overall_rms = float(np.sqrt(np.mean(pcm ** 2)))
+        peak = float(np.max(np.abs(pcm)))
+        crest = peak / (overall_rms + eps)
+
+    except Exception as e:
+        logger.debug("Audio quality analysis error for %s: %s", mp3_path, e)
+        return None
+
+    # -- Composite noise score (0=clean, 1=pure noise) ---
+    # Weights calibrated on real HF recordings:
+    #   - ac_peak is the strongest discriminator (0.93 = clean, 0.03 = noise)
+    #   - entropy is second best (0.36 = clean, 0.87 = noise)
+    #   - flatness, modulation, crest are secondary
+    ac_noise = 1.0 - min(1.0, max(0.0, ac_peak))           # 0=periodic, 1=random
+    ent_noise = min(1.0, max(0.0, (entropy - 0.3) / 0.6))  # map 0.3-0.9 → 0-1
+    flat_noise = min(1.0, max(0.0, flatness / 0.03))        # map 0-0.03 → 0-1
+    mod_noise = 1.0 - min(1.0, max(0.0, mod_index / 0.20))  # high mod = less noise
+    crest_noise = min(1.0, max(0.0, (crest - 3.5) / 2.5))   # >3.5 starts getting noisy
+
+    noise_level = (
+        ac_noise * 0.40 +
+        ent_noise * 0.30 +
+        flat_noise * 0.10 +
+        mod_noise * 0.10 +
+        crest_noise * 0.10
+    )
+    noise_level = min(1.0, max(0.0, noise_level))
+
+    # Map to 1-5 stars (never 0 — there IS a recording)
+    if noise_level >= 0.80:
+        audio_score = 1
+    elif noise_level >= 0.60:
+        audio_score = 2
+    elif noise_level >= 0.40:
+        audio_score = 3
+    elif noise_level >= 0.20:
+        audio_score = 4
+    else:
+        audio_score = 5
+
+    return {
+        "audio_score": audio_score,
+        "noise_level": round(noise_level, 3),
+        "metrics": {
+            "spectral_flatness": round(flatness, 4),
+            "spectral_entropy": round(entropy, 4),
+            "modulation_index": round(mod_index, 4),
+            "autocorrelation_peak": round(ac_peak, 4),
+            "crest_factor": round(crest, 2),
+        }
+    }
+
+
 class SignalRatingsDB:
     """Thread-safe persistent store for signal-quality ratings.
 
@@ -536,7 +665,7 @@ class SignalRatingsDB:
         except Exception as e:
             logger.error("Failed to save ratings DB: %s", e)
 
-    def add_rating(self, station_key, score, rating_type="automatico", recording=None):
+    def add_rating(self, station_key, score, rating_type="automatico", recording=None, audio_quality=None):
         """Add a rating.  score = int 0-5 or string 'nr'."""
         with self._lock:
             entry = self._db.setdefault(station_key, {
@@ -550,6 +679,8 @@ class SignalRatingsDB:
             }
             if recording:
                 rating_entry["recording"] = recording
+            if audio_quality:
+                rating_entry["audio_quality"] = audio_quality
             entry["ratings"].append(rating_entry)
             # Keep last 50 ratings max
             if len(entry["ratings"]) > 50:
@@ -969,18 +1100,49 @@ class AutoModeOrchestrator:
         return ratio, total_samples, rec_filename
 
     def _rate_and_save(self, event, signal_ratio, recording=None):
-        """Compute rating from signal_ratio and persist."""
+        """Compute rating from signal_ratio + offline audio analysis and persist."""
         key = _station_key(event)
         avg_snr = self._iq_monitor.get_avg_snr()
 
-        if signal_ratio <= 0.0:
-            score = "nr"
-            stars_str = "Segnale assente"
-        else:
-            score = _signal_ratio_to_stars(signal_ratio)
-            stars_str = "★" * score + "☆" * (5 - score)
+        # --- Offline audio quality analysis (if recording exists) ---
+        audio_quality = None
+        if recording:
+            mp3_path = os.path.join(RECORDINGS_DIR, recording)
+            if os.path.exists(mp3_path):
+                try:
+                    audio_quality = analyze_recording_quality(mp3_path)
+                except Exception as e:
+                    logger.warning("Audio quality analysis failed for %s: %s", recording, e)
 
-        self.ratings_db.add_rating(key, score, "automatico", recording=recording)
+        if signal_ratio <= 0.0:
+            # No signal detected at IQ level
+            if audio_quality and audio_quality["audio_score"] >= 3:
+                # IQ said no signal but audio analysis found decent content
+                # (can happen with very weak but audible signals)
+                score = audio_quality["audio_score"]
+                stars_str = "★" * score + "☆" * (5 - score) + " (audio)"
+            else:
+                score = "nr"
+                stars_str = "Segnale assente"
+        else:
+            iq_score = _signal_ratio_to_stars(signal_ratio)
+            if audio_quality:
+                audio_score = audio_quality["audio_score"]
+                # Blend: audio analysis has final say since it measures actual content
+                # If audio is much worse than IQ score, reduce (noise in recording)
+                # If audio is better, trust audio slightly
+                score = round(iq_score * 0.3 + audio_score * 0.7)
+                score = max(1, min(5, score))
+                stars_str = "★" * score + "☆" * (5 - score) + \
+                    " (IQ:{} Audio:{} noise:{:.0%})".format(
+                        iq_score, audio_score, audio_quality["noise_level"])
+            else:
+                score = iq_score
+                stars_str = "★" * score + "☆" * (5 - score)
+
+        self.ratings_db.add_rating(key, score, "automatico",
+                                   recording=recording,
+                                   audio_quality=audio_quality)
 
         entry = self.ratings_db.get_entry(key)
         avg = entry.get("avg_score") if entry else None
