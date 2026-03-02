@@ -101,6 +101,9 @@ class AutoModeRatingsController(Controller):
                 ratings_list = entry.get("ratings", [])
                 nr_count = sum(1 for r in ratings_list if r.get("score") == "nr")
                 scored_count = sum(1 for r in ratings_list if isinstance(r.get("score"), (int, float)))
+                # Last 5 positive detections (with timestamps)
+                positives = [r for r in ratings_list if isinstance(r.get("score"), (int, float))]
+                last_pos = [{"score": r["score"], "ts": r["ts"], "type": r.get("type", "?")} for r in positives[-5:]]
                 compact[key] = {
                     "avg_score": entry.get("avg_score"),
                     "consecutive_nr": entry.get("consecutive_nr", 0),
@@ -108,6 +111,7 @@ class AutoModeRatingsController(Controller):
                     "total_ratings": len(ratings_list),
                     "nr_count": nr_count,
                     "scored_count": scored_count,
+                    "last_positive": last_pos,
                 }
             
             self.send_response(
