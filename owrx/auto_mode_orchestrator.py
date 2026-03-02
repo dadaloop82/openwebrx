@@ -26,6 +26,9 @@ import threading
 import time
 import json
 import struct
+import subprocess
+import wave
+import re as _re
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any, Tuple
 from enum import Enum
@@ -35,6 +38,12 @@ try:
     HAS_NUMPY = True
 except ImportError:
     HAS_NUMPY = False
+
+try:
+    from scipy.signal import firwin, lfilter, lfilter_zi
+    HAS_SCIPY = True
+except ImportError:
+    HAS_SCIPY = False
 
 logger = logging.getLogger(__name__)
 
@@ -184,6 +193,278 @@ class IQPowerMonitor:
             self._thread = None
 
 
+# ========================================================================
+#  Headless Recorder  –  demodulates IQ → audio → MP3 without DSP chain
+# ========================================================================
+
+RECORDINGS_DIR = "/var/lib/openwebrx/recordings"
+HEADLESS_AUDIO_RATE = 12000       # output sample rate
+HEADLESS_MAX_DURATION = 120       # max seconds per recording
+HEADLESS_MIN_DURATION = 3         # discard recordings shorter than this
+HEADLESS_CHUNK_SAMPLES = 48000    # process IQ in 48K-sample blocks (~20 ms at 2.4 MHz)
+
+
+class HeadlessRecorder:
+    """Records demodulated audio directly from raw IQ data.
+
+    Creates its own buffer reader from the SDR source, demodulates
+    (AM / USB / LSB / NFM) using numpy, decimates with scipy FIR
+    filters to 12 kHz, writes WAV, converts to MP3 via ffmpeg.
+
+    This enables headless recording in auto-mode without any
+    WebSocket client or DSP chain running.
+    """
+
+    def __init__(self):
+        self._thread = None
+        self._stop_event = threading.Event()
+        self._reader = None
+        self._mp3_name = None
+        self._lock = threading.Lock()
+
+    @property
+    def last_recording(self):
+        """Return the filename of the last completed recording (or None)."""
+        with self._lock:
+            return self._mp3_name
+
+    def start(self, source, freq_hz, mode, station_name, samp_rate=2400000):
+        """Start recording from source IQ buffer."""
+        if not HAS_NUMPY or not HAS_SCIPY:
+            logger.warning("HeadlessRecorder: numpy/scipy not available")
+            return
+        if self._thread and self._thread.is_alive():
+            self.stop()
+
+        with self._lock:
+            self._mp3_name = None
+        self._stop_event.clear()
+
+        try:
+            self._reader = source.getBuffer().getReader()
+        except Exception as e:
+            logger.warning("HeadlessRecorder: cannot get reader: %s", e)
+            return
+
+        self._thread = threading.Thread(
+            target=self._record_loop,
+            args=(freq_hz, mode, station_name, samp_rate),
+            daemon=True,
+            name="headless_recorder",
+        )
+        self._thread.start()
+        logger.info("HeadlessRecorder started for %s (%.3f MHz, %s)",
+                     station_name or "?", freq_hz / 1e6, mode)
+
+    def stop(self):
+        """Stop recording.  Blocks until finalized.  Returns MP3 filename or None."""
+        self._stop_event.set()
+        if self._reader is not None:
+            try:
+                self._reader.stop()
+            except Exception:
+                pass
+        if self._thread is not None:
+            self._thread.join(timeout=10)
+            self._thread = None
+        self._reader = None
+        with self._lock:
+            return self._mp3_name
+
+    # ------------------------------------------------------------------ #
+    #  Internal recording loop                                            #
+    # ------------------------------------------------------------------ #
+
+    def _record_loop(self, freq_hz, mode, station_name, samp_rate):
+        mode = (mode or "am").lower()
+        dec_factor = max(1, samp_rate // HEADLESS_AUDIO_RATE)  # e.g. 200
+
+        # Build multi-stage decimation filters
+        stages = self._design_decimation(dec_factor, samp_rate)
+
+        # Prepare WAV output
+        os.makedirs(RECORDINGS_DIR, exist_ok=True)
+        ts_str = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        freq_mhz = freq_hz / 1e6
+        wav_path = os.path.join(RECORDINGS_DIR, "temp_headless_{}.wav".format(ts_str))
+
+        wf = wave.open(wav_path, "wb")
+        wf.setnchannels(1)
+        wf.setsampwidth(2)   # 16-bit
+        wf.setframerate(HEADLESS_AUDIO_RATE)
+
+        total_audio_samples = 0
+        max_audio_samples = HEADLESS_MAX_DURATION * HEADLESS_AUDIO_RATE
+        iq_accum = []
+        iq_accum_len = 0
+
+        try:
+            while not self._stop_event.is_set() and total_audio_samples < max_audio_samples:
+                data = self._reader.read()
+                if data is None:
+                    break
+
+                raw = data.tobytes() if hasattr(data, "tobytes") else bytes(data)
+                if len(raw) < 8:
+                    continue
+
+                chunk = np.frombuffer(raw, dtype=np.complex64)
+                iq_accum.append(chunk)
+                iq_accum_len += len(chunk)
+
+                # Process when we have enough data
+                if iq_accum_len < HEADLESS_CHUNK_SAMPLES:
+                    continue
+
+                iq_block = np.concatenate(iq_accum)
+                iq_accum = []
+                iq_accum_len = 0
+
+                # 1. Demodulate at full sample rate
+                audio_full = self._demodulate(iq_block, mode)
+
+                # 2. Multi-stage decimate to HEADLESS_AUDIO_RATE
+                audio_dec = audio_full
+                for stage in stages:
+                    fir_coeffs, factor = stage[0], stage[1]
+                    if len(audio_dec) < factor:
+                        break
+                    filtered, stage[2] = lfilter(fir_coeffs, 1.0, audio_dec, zi=stage[2])
+                    audio_dec = filtered[::factor]
+
+                if len(audio_dec) == 0:
+                    continue
+
+                # 3. Normalize & convert to int16
+                peak = np.max(np.abs(audio_dec))
+                if peak > 1e-10:
+                    audio_dec = audio_dec / peak * 0.7
+                samples_i16 = (audio_dec * 32767).clip(-32767, 32767).astype(np.int16)
+                wf.writeframes(samples_i16.tobytes())
+                total_audio_samples += len(samples_i16)
+
+        except Exception as e:
+            logger.error("HeadlessRecorder loop error: %s", e, exc_info=True)
+        finally:
+            wf.close()
+
+        # Finalize: convert WAV → MP3
+        duration = total_audio_samples / max(HEADLESS_AUDIO_RATE, 1)
+        if duration < HEADLESS_MIN_DURATION:
+            logger.info("HeadlessRecorder: discarded short recording (%.1fs)", duration)
+            try:
+                os.unlink(wav_path)
+            except OSError:
+                pass
+            return
+
+        mp3_name = "{:.4f}MHz_{}_{}.mp3".format(freq_mhz, ts_str[:8], ts_str[9:])
+        mp3_path = os.path.join(RECORDINGS_DIR, mp3_name)
+        title = station_name or "Unknown"
+        comment = "{:.4f} MHz - {} UTC".format(
+            freq_mhz, datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"))
+
+        try:
+            subprocess.run(
+                ["ffmpeg", "-y", "-loglevel", "error",
+                 "-i", wav_path,
+                 "-codec:a", "libmp3lame", "-qscale:a", "2",
+                 "-metadata", "title={}".format(title),
+                 "-metadata", "artist=OpenWebRX Auto-Mode",
+                 "-metadata", "comment={}".format(comment),
+                 mp3_path],
+                capture_output=True, timeout=60,
+            )
+        except Exception as e:
+            logger.error("HeadlessRecorder ffmpeg error: %s", e)
+
+        # Cleanup WAV
+        try:
+            os.unlink(wav_path)
+        except OSError:
+            pass
+
+        if os.path.exists(mp3_path) and os.path.getsize(mp3_path) > 0:
+            logger.info("HeadlessRecorder: saved %s (%.1fs)", mp3_name, duration)
+            with self._lock:
+                self._mp3_name = mp3_name
+        else:
+            logger.warning("HeadlessRecorder: MP3 conversion failed for %s", wav_path)
+
+    # ------------------------------------------------------------------ #
+    #  Demodulation                                                       #
+    # ------------------------------------------------------------------ #
+
+    @staticmethod
+    def _demodulate(iq, mode):
+        """Demodulate complex IQ to real audio signal."""
+        if mode == "am":
+            audio = np.abs(iq)
+            audio -= np.mean(audio)     # remove DC
+            return audio.astype(np.float64)
+        elif mode == "usb":
+            return np.real(iq).astype(np.float64)
+        elif mode == "lsb":
+            # LSB: conjugate mirrors the spectrum, then take real part
+            return np.real(np.conj(iq)).astype(np.float64)
+        elif mode in ("nfm", "wfm"):
+            # FM discriminator: phase difference between successive samples
+            if len(iq) < 2:
+                return np.zeros(1, dtype=np.float64)
+            disc = iq[1:] * np.conj(iq[:-1])
+            return np.angle(disc).astype(np.float64)
+        else:
+            # Fallback: AM envelope
+            audio = np.abs(iq)
+            audio -= np.mean(audio)
+            return audio.astype(np.float64)
+
+    # ------------------------------------------------------------------ #
+    #  Multi-stage FIR decimation design                                  #
+    # ------------------------------------------------------------------ #
+
+    @staticmethod
+    def _design_decimation(total_factor, samp_rate):
+        """Design a multi-stage FIR decimation chain.
+
+        Factorizes `total_factor` into stages of <= 10 each.
+        Returns list of [fir_coeffs, factor, zi_state] triples.
+        """
+        # Factorize into stages
+        factors = []
+        remaining = total_factor
+        for div in [10, 8, 5, 4, 3, 2]:
+            while remaining >= div and remaining % div == 0:
+                factors.append(div)
+                remaining //= div
+        if remaining > 1:
+            factors.append(remaining)
+        if not factors:
+            factors = [1]
+
+        stages = []
+        current_rate = samp_rate
+        for f in factors:
+            # Anti-aliasing LPF: cutoff at 0.8 × new_nyquist
+            new_rate = current_rate / f
+            cutoff_norm = 0.8 * (new_rate / 2) / (current_rate / 2)
+            cutoff_norm = min(cutoff_norm, 0.95)  # safety clamp
+            # More taps for narrower cutoffs
+            ntaps = max(32, int(4.0 / cutoff_norm))
+            ntaps = min(ntaps, 512)
+            if ntaps % 2 == 0:
+                ntaps += 1  # odd number of taps for type-I FIR
+            fir = firwin(ntaps, cutoff_norm)
+            zi = lfilter_zi(fir, 1.0) * 0.0
+            stages.append([fir, f, zi])
+            current_rate = new_rate
+
+        logger.debug("HeadlessRecorder decimation: %s (total %dx, %d Hz → %d Hz)",
+                     "×".join(str(f) for _, f, _ in stages),
+                     total_factor, samp_rate, int(current_rate))
+        return stages
+
+
 class AutoModeState(Enum):
     MANUAL = "manual"
     IDLE   = "idle"
@@ -255,18 +536,21 @@ class SignalRatingsDB:
         except Exception as e:
             logger.error("Failed to save ratings DB: %s", e)
 
-    def add_rating(self, station_key, score, rating_type="automatico"):
+    def add_rating(self, station_key, score, rating_type="automatico", recording=None):
         """Add a rating.  score = int 0-5 or string 'nr'."""
         with self._lock:
             entry = self._db.setdefault(station_key, {
                 "ratings": [], "avg_score": None, "enabled": True,
                 "consecutive_nr": 0,
             })
-            entry["ratings"].append({
+            rating_entry = {
                 "score": score,
                 "type": rating_type,
                 "ts": datetime.now(timezone.utc).isoformat(),
-            })
+            }
+            if recording:
+                rating_entry["recording"] = recording
+            entry["ratings"].append(rating_entry)
             # Keep last 50 ratings max
             if len(entry["ratings"]) > 50:
                 entry["ratings"] = entry["ratings"][-50:]
@@ -365,7 +649,11 @@ class AutoModeOrchestrator:
         # IQ-based signal detector (works without DSP chain / WebSocket clients)
         self._iq_monitor = IQPowerMonitor()
 
-        logger.info("AutoModeOrchestrator initialized (IQ monitor: numpy=%s)", HAS_NUMPY)
+        # Headless recorder (demodulates IQ → audio → MP3 without DSP chain)
+        self._headless_rec = HeadlessRecorder()
+
+        logger.info("AutoModeOrchestrator initialized (IQ monitor: numpy=%s, headless rec: scipy=%s)",
+                     HAS_NUMPY, HAS_SCIPY)
 
     # -- config ----------------------------------------------------------
     def _load_config(self):
@@ -606,7 +894,9 @@ class AutoModeOrchestrator:
     #  Signal quality measurement
     # ====================================================================
 
-    def _measure_signal_during_dwell(self, dwell_seconds):
+    def _measure_signal_during_dwell(self, dwell_seconds,
+                                     source=None, freq_hz=0, mode="am",
+                                     station_name=None):
         """Dwell for dwell_seconds while measuring signal via IQ power analysis.
 
         Uses two methods in parallel:
@@ -615,6 +905,9 @@ class AutoModeOrchestrator:
           2. SquelchRecorder – checks if demodulated audio had signal.  Only
              works when a WebSocket client is connected (DSP chain running).
 
+        When signal is first detected, also starts HeadlessRecorder to capture
+        demodulated audio for playback.
+
         Returns (signal_ratio, total_samples):
             signal_ratio = fraction of samples where signal was detected
             total_samples = number of samples taken
@@ -622,6 +915,7 @@ class AutoModeOrchestrator:
         signal_count = 0
         total_samples = 0
         end_time = time.time() + dwell_seconds
+        headless_started = False
 
         # Reset average SNR for this dwell
         self._iq_monitor.reset_avg()
@@ -648,14 +942,32 @@ class AutoModeOrchestrator:
 
             if detected:
                 signal_count += 1
+                # Start headless recorder on first signal detection
+                if not headless_started and source is not None and HAS_SCIPY:
+                    try:
+                        try:
+                            samp_rate = source.getProps()["samp_rate"]
+                        except (KeyError, TypeError):
+                            samp_rate = 2400000
+                        self._headless_rec.start(source, freq_hz, mode,
+                                                  station_name, samp_rate)
+                        headless_started = True
+                    except Exception as e:
+                        logger.warning("HeadlessRecorder start failed: %s", e)
+
+        # Stop headless recorder (finishes WAV → MP3 conversion)
+        rec_filename = None
+        if headless_started:
+            rec_filename = self._headless_rec.stop()
 
         ratio = signal_count / max(total_samples, 1)
         avg_snr = self._iq_monitor.get_avg_snr()
-        logger.info("  Signal measurement: %d/%d detected (ratio=%.2f, avg_snr=%.1f)",
-                     signal_count, total_samples, ratio, avg_snr)
-        return ratio, total_samples
+        logger.info("  Signal measurement: %d/%d detected (ratio=%.2f, avg_snr=%.1f, rec=%s)",
+                     signal_count, total_samples, ratio, avg_snr,
+                     rec_filename or "none")
+        return ratio, total_samples, rec_filename
 
-    def _rate_and_save(self, event, signal_ratio):
+    def _rate_and_save(self, event, signal_ratio, recording=None):
         """Compute rating from signal_ratio and persist."""
         key = _station_key(event)
         avg_snr = self._iq_monitor.get_avg_snr()
@@ -667,7 +979,7 @@ class AutoModeOrchestrator:
             score = _signal_ratio_to_stars(signal_ratio)
             stars_str = "★" * score + "☆" * (5 - score)
 
-        self.ratings_db.add_rating(key, score, "automatico")
+        self.ratings_db.add_rating(key, score, "automatico", recording=recording)
 
         entry = self.ratings_db.get_entry(key)
         avg = entry.get("avg_score") if entry else None
@@ -846,6 +1158,7 @@ class AutoModeOrchestrator:
         time.sleep(self.config.get("transition_delay", 2))
 
         # -- start IQ power monitor for this dwell -----------------------
+        source = None
         try:
             source = self.auto_tuner._get_source() if self.auto_tuner else None
             if source and source.isAvailable():
@@ -874,7 +1187,11 @@ class AutoModeOrchestrator:
                 logger.error("Recorder start error: %s", e)
 
         # -- dwell + measure signal quality ------------------------------
-        signal_ratio, samples = self._measure_signal_during_dwell(dwell_seconds)
+        signal_ratio, samples, rec_filename = self._measure_signal_during_dwell(
+            dwell_seconds,
+            source=source, freq_hz=freq_hz, mode=mode,
+            station_name=label if event else None,
+        )
 
         # -- stop IQ monitor + decoders / recorder -----------------------
         self._iq_monitor.stop()
@@ -891,7 +1208,7 @@ class AutoModeOrchestrator:
 
         # -- rate the signal ---------------------------------------------
         if event is not None and samples > 0:
-            self._rate_and_save(event, signal_ratio)
+            self._rate_and_save(event, signal_ratio, recording=rec_filename)
 
     # ====================================================================
     #  Status / testing
