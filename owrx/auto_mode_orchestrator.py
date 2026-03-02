@@ -25,9 +25,16 @@ import logging
 import threading
 import time
 import json
+import struct
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any, Tuple
 from enum import Enum
+
+try:
+    import numpy as np
+    HAS_NUMPY = True
+except ImportError:
+    HAS_NUMPY = False
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +48,140 @@ SIGNAL_SAMPLE_INTERVAL = 3                         # seconds between samples
 NR_DISABLE_THRESHOLD = 5                           # consecutive "nr" -> disable
 MAX_EVENTS_PER_CYCLE = 20                          # max events per scan cycle
 LONG_EVENT_THRESHOLD_MIN = 120                     # events >2h = "long-running"
+
+# -- IQ signal detection ---------------------------------------------------
+IQ_FFT_SIZE = 2048                                 # FFT bins for spectral analysis
+IQ_SNR_THRESHOLD = 2.5                             # signal/noise ratio to count as "signal present"
+IQ_ANALYSIS_INTERVAL = 1.0                         # seconds between FFT analyses in the reader thread
+
+
+# ========================================================================
+#  IQ Power Monitor  –  reads raw IQ from SDR source, detects signal
+# ========================================================================
+
+class IQPowerMonitor:
+    """Background thread that reads raw IQ data from the SDR source buffer
+    and continuously computes a spectral SNR at center frequency.
+
+    This works in auto-mode even without any WebSocket client / DSP chain.
+    """
+
+    def __init__(self):
+        self._reader = None
+        self._thread = None
+        self._running = False
+        self._signal_detected = False
+        self._snr = 0.0
+        self._avg_snr_sum = 0.0
+        self._avg_snr_count = 0
+        self._lock = threading.Lock()
+
+    def start(self, source):
+        """Begin reading IQ from source. Safe to call if already running."""
+        self.stop()
+        if not HAS_NUMPY:
+            logger.warning("IQPowerMonitor: numpy not available – signal detection disabled")
+            return
+        try:
+            buf = source.getBuffer()
+            self._reader = buf.getReader()
+        except Exception as e:
+            logger.warning("IQPowerMonitor: cannot get IQ buffer reader: %s", e)
+            return
+        self._running = True
+        self._signal_detected = False
+        self._snr = 0.0
+        self._avg_snr_sum = 0.0
+        self._avg_snr_count = 0
+        self._thread = threading.Thread(target=self._run, daemon=True, name="iq_power_monitor")
+        self._thread.start()
+        logger.debug("IQPowerMonitor started")
+
+    def _run(self):
+        fft_size = IQ_FFT_SIZE
+        last_analysis = 0.0
+        bytes_per_sample = 8  # complex float32 = 2 × 4 bytes
+
+        while self._running:
+            try:
+                data = self._reader.read()
+                if data is None:
+                    break
+
+                now = time.time()
+                if now - last_analysis < IQ_ANALYSIS_INTERVAL:
+                    continue  # skip, wait until next analysis window
+                last_analysis = now
+
+                raw = data.tobytes() if hasattr(data, 'tobytes') else bytes(data)
+                needed = fft_size * bytes_per_sample
+                if len(raw) < needed:
+                    continue
+
+                # Use the LAST fft_size samples from the chunk (freshest data)
+                iq = np.frombuffer(raw[-needed:], dtype=np.complex64)
+
+                # Windowed FFT for better spectral leakage control
+                window = np.hanning(fft_size)
+                spectrum = np.abs(np.fft.fftshift(np.fft.fft(iq * window))) ** 2
+
+                # Signal power: center ±2% of bandwidth (covers ~10–20 kHz depending on samp_rate)
+                center = fft_size // 2
+                half_sig = max(4, fft_size // 50)  # ~2% of bins each side
+                sig_slice = spectrum[center - half_sig : center + half_sig]
+                signal_power = float(np.mean(sig_slice))
+
+                # Noise power: outer quarters (away from center signal)
+                quarter = fft_size // 4
+                noise_power = float((np.mean(spectrum[:quarter]) + np.mean(spectrum[-quarter:])) / 2)
+
+                snr = signal_power / max(noise_power, 1e-30)
+
+                with self._lock:
+                    self._snr = snr
+                    self._signal_detected = snr > IQ_SNR_THRESHOLD
+                    self._avg_snr_sum += snr
+                    self._avg_snr_count += 1
+
+            except (ValueError, BrokenPipeError, OSError):
+                break
+            except Exception as e:
+                logger.debug("IQPowerMonitor read error: %s", e)
+                break
+
+        logger.debug("IQPowerMonitor thread exiting")
+
+    # -- public query methods --
+    def has_signal(self) -> bool:
+        with self._lock:
+            return self._signal_detected
+
+    def get_snr(self) -> float:
+        with self._lock:
+            return self._snr
+
+    def get_avg_snr(self) -> float:
+        with self._lock:
+            if self._avg_snr_count == 0:
+                return 0.0
+            return self._avg_snr_sum / self._avg_snr_count
+
+    def reset_avg(self):
+        with self._lock:
+            self._avg_snr_sum = 0.0
+            self._avg_snr_count = 0
+
+    def stop(self):
+        self._running = False
+        if self._reader is not None:
+            try:
+                self._reader.stop()
+            except Exception:
+                pass
+            self._reader = None
+        if self._thread is not None:
+            self._thread.join(timeout=3)
+            self._thread = None
 
 
 class AutoModeState(Enum):
@@ -221,7 +362,10 @@ class AutoModeOrchestrator:
         # Ratings
         self.ratings_db = SignalRatingsDB()
 
-        logger.info("AutoModeOrchestrator initialized")
+        # IQ-based signal detector (works without DSP chain / WebSocket clients)
+        self._iq_monitor = IQPowerMonitor()
+
+        logger.info("AutoModeOrchestrator initialized (IQ monitor: numpy=%s)", HAS_NUMPY)
 
     # -- config ----------------------------------------------------------
     def _load_config(self):
@@ -332,6 +476,10 @@ class AutoModeOrchestrator:
             self.state = AutoModeState.MANUAL
             if old != AutoModeState.AUTO:
                 return
+
+            # Stop IQ power monitor
+            self._iq_monitor.stop()
+
             if self.decoder_manager:
                 self.decoder_manager.stop_session()
             if self.auto_recorder:
@@ -459,41 +607,65 @@ class AutoModeOrchestrator:
     # ====================================================================
 
     def _measure_signal_during_dwell(self, dwell_seconds):
-        """Dwell for dwell_seconds while sampling the squelch-recorder state.
+        """Dwell for dwell_seconds while measuring signal via IQ power analysis.
+
+        Uses two methods in parallel:
+          1. IQPowerMonitor – reads raw IQ from the SDR source buffer and
+             computes spectral SNR via numpy FFT.  Works headlessly in auto-mode.
+          2. SquelchRecorder – checks if demodulated audio had signal.  Only
+             works when a WebSocket client is connected (DSP chain running).
 
         Returns (signal_ratio, total_samples):
-            signal_ratio = fraction of samples where audio signal was detected
+            signal_ratio = fraction of samples where signal was detected
             total_samples = number of samples taken
         """
         signal_count = 0
         total_samples = 0
         end_time = time.time() + dwell_seconds
 
+        # Reset average SNR for this dwell
+        self._iq_monitor.reset_avg()
+
         while time.time() < end_time and self.state == AutoModeState.AUTO:
             time.sleep(SIGNAL_SAMPLE_INTERVAL)
             total_samples += 1
 
-            # Try reading SquelchRecorder singleton
-            try:
-                from owrx.auto_squelch_recorder import SquelchRecorder
-                rec = SquelchRecorder()
-                if rec.is_recording:
-                    signal_count += 1
-            except Exception:
-                pass
+            detected = False
+
+            # Method 1: IQ power monitor (primary – works without DSP chain)
+            if self._iq_monitor.has_signal():
+                detected = True
+
+            # Method 2: SquelchRecorder fallback (works when user is connected)
+            if not detected:
+                try:
+                    from owrx.auto_squelch_recorder import SquelchRecorder
+                    rec = SquelchRecorder()
+                    if rec.is_recording:
+                        detected = True
+                except Exception:
+                    pass
+
+            if detected:
+                signal_count += 1
 
         ratio = signal_count / max(total_samples, 1)
+        avg_snr = self._iq_monitor.get_avg_snr()
+        logger.info("  Signal measurement: %d/%d detected (ratio=%.2f, avg_snr=%.1f)",
+                     signal_count, total_samples, ratio, avg_snr)
         return ratio, total_samples
 
     def _rate_and_save(self, event, signal_ratio):
         """Compute rating from signal_ratio and persist."""
         key = _station_key(event)
+        avg_snr = self._iq_monitor.get_avg_snr()
+
         if signal_ratio <= 0.0:
             score = "nr"
             stars_str = "Segnale assente"
         else:
             score = _signal_ratio_to_stars(signal_ratio)
-            stars_str = "*" * score + "." * (5 - score)
+            stars_str = "★" * score + "☆" * (5 - score)
 
         self.ratings_db.add_rating(key, score, "automatico")
 
@@ -510,10 +682,12 @@ class AutoModeOrchestrator:
             "consecutive_nr": nr_count,
             "avg_score": avg,
             "total_ratings": total_ratings,
+            "snr": round(avg_snr, 1),
         }
 
-        logger.info("QUALITY: %s %s%s [nr x%d] (%d voti)",
-                     event.get("description", "?"), stars_str, avg_str, nr_count, total_ratings)
+        logger.info("QUALITY: %s %s%s [nr x%d] (%d voti) SNR=%.1f",
+                     event.get("description", "?"), stars_str, avg_str,
+                     nr_count, total_ratings, avg_snr)
 
     # ====================================================================
     #  Main loop
@@ -671,6 +845,14 @@ class AutoModeOrchestrator:
 
         time.sleep(self.config.get("transition_delay", 2))
 
+        # -- start IQ power monitor for this dwell -----------------------
+        try:
+            source = self.auto_tuner._get_source() if self.auto_tuner else None
+            if source and source.isAvailable():
+                self._iq_monitor.start(source)
+        except Exception as e:
+            logger.warning("Failed to start IQ monitor: %s", e)
+
         # -- set station info on SquelchRecorder for filename/metadata --
         try:
             from owrx.auto_squelch_recorder import SquelchRecorder
@@ -694,7 +876,9 @@ class AutoModeOrchestrator:
         # -- dwell + measure signal quality ------------------------------
         signal_ratio, samples = self._measure_signal_during_dwell(dwell_seconds)
 
-        # -- stop decoders / recorder ------------------------------------
+        # -- stop IQ monitor + decoders / recorder -----------------------
+        self._iq_monitor.stop()
+
         if self.auto_recorder and self.config.get("enable_recording"):
             try:
                 if hasattr(self.auto_recorder, "stop_recording"):

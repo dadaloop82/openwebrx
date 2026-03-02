@@ -45,11 +45,16 @@ class AutoModeRatingsController(Controller):
             # Build a compact summary for each station
             compact = {}
             for key, entry in all_ratings.items():
+                ratings_list = entry.get("ratings", [])
+                nr_count = sum(1 for r in ratings_list if r.get("score") == "nr")
+                scored_count = sum(1 for r in ratings_list if isinstance(r.get("score"), (int, float)))
                 compact[key] = {
                     "avg_score": entry.get("avg_score"),
                     "consecutive_nr": entry.get("consecutive_nr", 0),
                     "enabled": entry.get("enabled", True),
-                    "total_ratings": len(entry.get("ratings", [])),
+                    "total_ratings": len(ratings_list),
+                    "nr_count": nr_count,
+                    "scored_count": scored_count,
                 }
             
             self.send_response(
