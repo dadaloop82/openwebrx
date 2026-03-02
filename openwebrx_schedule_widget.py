@@ -475,11 +475,11 @@ body{{font-family:Arial,sans-serif;background:linear-gradient(135deg,#1e3c72,#2a
 .rec-card-header .rc-score{{color:#FFD700;letter-spacing:1px}}
 .rec-card-header .rc-dl{{color:#64B5F6;text-decoration:none;opacity:0.5;transition:opacity 0.2s;margin-left:auto}}
 .rec-card-header .rc-dl:hover{{opacity:1}}
-.rec-viz{{position:relative;cursor:pointer;background:#060a14;height:52px;overflow:hidden}}
-.rec-viz canvas.rv-spec{{display:block;width:100%;height:28px}}
-.rec-viz canvas.rv-wave{{display:block;width:100%;height:24px}}
+.rec-viz{{position:relative;cursor:pointer;background:#060a14;overflow:hidden;border-radius:4px;margin:4px 8px}}
+.rec-viz canvas.rv-spec{{display:block;width:100%;height:36px}}
+.rec-viz canvas.rv-wave{{display:block;width:100%;height:28px}}
 .rec-viz .rv-overlay{{position:absolute;top:0;left:0;width:0%;height:100%;background:rgba(0,212,255,0.12);pointer-events:none;transition:width 0.06s linear}}
-.rec-viz .rv-loading{{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:0.7em;color:#335;font-family:monospace}}
+.rec-viz .rv-loading{{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:0.7em;color:#556;font-family:monospace}}
 .rec-card-bottom{{display:flex;align-items:center;gap:6px;padding:4px 10px 6px}}
 .rec-card-bottom audio{{flex:1;height:28px;border-radius:4px;min-width:0}}
 .rec-no-audio{{font-size:0.78em;color:#999;padding:4px 0;font-style:italic}}
@@ -960,8 +960,13 @@ async function saveScanSettings(){{
       if(starsHtml) html += '<span class="rc-score" title="'+(rec.src||'')+'">'+starsHtml+'</span>';
       html += '<a class="rc-dl" href="'+audioUrl+'" download title="Download">⬇</a>';
       html += '</div>';
-      /* spectrogram + waveform viz */
-      html += '<div class="rec-viz"><canvas class="rv-spec"></canvas><canvas class="rv-wave"></canvas><div class="rv-overlay"></div><span class="rv-loading">caricamento...</span></div>';
+      /* spectrogram + waveform viz — full width stacked rows */
+      html += '<div class="rec-viz">';
+      html += '<canvas class="rv-spec"></canvas>';
+      html += '<canvas class="rv-wave"></canvas>';
+      html += '<div class="rv-overlay"></div>';
+      html += '<span class="rv-loading">caricamento...</span>';
+      html += '</div>';
       /* audio player */
       html += '<div class="rec-card-bottom"><audio controls preload="none" src="'+audioUrl+'"></audio></div>';
       html += '</div>';
@@ -1059,7 +1064,14 @@ async function saveScanSettings(){{
     }}
   }}
 
-  const _recVizAudioCtx = new (window.AudioContext || window.webkitAudioContext)({{sampleRate:22050}});
+  let _recVizAudioCtx = null;
+  function getRecAudioCtx(){{
+    if(!_recVizAudioCtx){{
+      _recVizAudioCtx = new (window.AudioContext || window.webkitAudioContext)({{sampleRate:22050}});
+    }}
+    if(_recVizAudioCtx.state === 'suspended') _recVizAudioCtx.resume();
+    return _recVizAudioCtx;
+  }}
 
   function initRecViz(containerId){{
     const wrap = document.getElementById(containerId);
@@ -1077,20 +1089,27 @@ async function saveScanSettings(){{
       function loadViz(){{
         if(vizDone) return;
         vizDone = true;
+        if(loading) loading.textContent='decodifica audio...';
         const src = audio.src || audio.querySelector('source')?.src;
-        if(!src) return;
-        fetch(src).then(r=>r.arrayBuffer()).then(function(buf){{
-          return _recVizAudioCtx.decodeAudioData(buf);
+        if(!src){{ if(loading) loading.textContent='⚠ no src'; return; }}
+        const ctx = getRecAudioCtx();
+        fetch(src).then(function(r){{
+          if(!r.ok) throw new Error('HTTP '+r.status);
+          return r.arrayBuffer();
+        }}).then(function(buf){{
+          return ctx.decodeAudioData(buf);
         }}).then(function(decoded){{
           const pcm = decoded.getChannelData(0);
           drawRecSpectrogram(specC, pcm, decoded.sampleRate);
           drawRecWaveform(waveC, pcm);
           if(loading) loading.style.display='none';
-        }}).catch(function(e){{ if(loading) loading.textContent='⚠'; }});
+        }}).catch(function(e){{
+          console.error('rec-viz error:', e);
+          if(loading) loading.textContent='⚠ '+e.message;
+        }});
       }}
-      /* Lazy-load: fetch when audio starts playing or on hover */
-      audio.addEventListener('play', loadViz, {{once:true}});
-      viz.addEventListener('mouseenter', loadViz, {{once:true}});
+      /* Auto-load immediately — small MP3s, parallel fetch is fine */
+      loadViz();
       /* Playback progress overlay */
       audio.addEventListener('timeupdate', function(){{
         if(audio.duration > 0){{
@@ -1099,12 +1118,12 @@ async function saveScanSettings(){{
       }});
       /* Click-to-seek on viz */
       viz.addEventListener('click', function(e){{
+        const ctx2 = getRecAudioCtx();
         if(audio.duration){{
           const rect = viz.getBoundingClientRect();
           audio.currentTime = ((e.clientX - rect.left)/rect.width) * audio.duration;
           if(audio.paused) audio.play();
         }} else {{
-          loadViz();
           audio.play();
         }}
       }});
