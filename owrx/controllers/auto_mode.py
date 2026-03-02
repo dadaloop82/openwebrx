@@ -192,6 +192,7 @@ def _scan_recordings_dir():
             "date": date_str,
             "time": time_str,
             "size": size,
+            "duration_s": max(1, round(size / 8000)) if size > 0 else 0,
         }
         result.setdefault(freq_hz_str, []).append(entry)
     return result
