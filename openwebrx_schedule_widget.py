@@ -944,7 +944,7 @@ async function saveScanSettings(){{
       }});
     }}
     if(allRecs.length === 0) return '';
-    const show = allRecs.slice(-5).reverse();
+    const show = allRecs.slice(-2).reverse();
     const cardId = 'rc'+Math.random().toString(36).substring(2,8);
     let html = '<div class="rec-cards" id="'+cardId+'" onclick="event.stopPropagation()">';
     show.forEach((rec, idx) => {{
@@ -969,7 +969,7 @@ async function saveScanSettings(){{
       html += '<span class="rv-loading">caricamento...</span>';
       html += '</div>';
       /* audio player */
-      html += '<div class="rec-card-bottom"><audio controls preload="none" src="'+audioUrl+'"></audio></div>';
+      html += '<div class="rec-card-bottom"><audio controls preload="metadata" crossorigin="anonymous" src="'+audioUrl+'"></audio></div>';
       html += '</div>';
     }});
     html += '</div>';
@@ -1189,7 +1189,7 @@ async function saveScanSettings(){{
       agg.consecutive_nr = Math.min(...agg._nr_counts.length ? agg._nr_counts : [0]);
       if(agg.last_positive && agg.last_positive.length > 5){{
         agg.last_positive.sort((a,b) => (a.ts > b.ts ? 1 : -1));
-        agg.last_positive = agg.last_positive.slice(-5);
+        agg.last_positive = agg.last_positive.slice(-2);
       }}
       delete agg._scores;
       delete agg._nr_counts;
