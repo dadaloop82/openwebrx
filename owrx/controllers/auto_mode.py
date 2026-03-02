@@ -32,6 +32,59 @@ class AutoModeStatusController(Controller):
             )
 
 
+class AutoModeRateController(Controller):
+    """POST endpoint to submit a manual rating for a station.
+    Body: {"key": "freq|desc", "score": 1-5}"""
+
+    def postAction(self):
+        try:
+            data = json.loads(self.get_body().decode("utf-8"))
+            key = data.get("key", "")
+            score = data.get("score")
+            if not key or score is None:
+                self.send_response(
+                    json.dumps({"error": "key and score required"}),
+                    content_type="application/json", code=400,
+                    headers={"Access-Control-Allow-Origin": "*"}
+                )
+                return
+            score = int(score)
+            if score < 1 or score > 5:
+                self.send_response(
+                    json.dumps({"error": "score must be 1-5"}),
+                    content_type="application/json", code=400,
+                    headers={"Access-Control-Allow-Origin": "*"}
+                )
+                return
+            from owrx.auto_mode_orchestrator import AutoModeOrchestrator
+            orch = AutoModeOrchestrator.get_instance()
+            orch.ratings_db.add_rating(key, score, "manuale")
+            logger.info("Manual rating: %s = %d stars", key, score)
+            self.send_response(
+                json.dumps({"ok": True, "key": key, "score": score}),
+                content_type="application/json",
+                headers={"Access-Control-Allow-Origin": "*"}
+            )
+        except Exception as e:
+            logger.error("Error saving manual rating: %s", e, exc_info=True)
+            self.send_response(
+                json.dumps({"error": str(e)}),
+                content_type="application/json", code=500,
+                headers={"Access-Control-Allow-Origin": "*"}
+            )
+
+    def optionsAction(self):
+        """Handle CORS preflight."""
+        self.send_response(
+            "", content_type="text/plain",
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "POST, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type",
+            }
+        )
+
+
 class AutoModeRatingsController(Controller):
     """Public API endpoint exposing the full signal ratings database
     so the schedule widget can update quality badges in real-time."""
