@@ -104,16 +104,17 @@ class FilesController(WebpageController):
         return info
 
     def _build_station_lookup(self):
-        """Build freq_mhz → station_name mapping from signal_ratings.json.
+        """Build lookup tables from signal_ratings.json.
 
         Keys in the JSON are like "5.96|Radio Romania Int. (ROU)".
-        We also index by recording filename for exact matching.
-        Returns (freq_map, file_map) where:
-          freq_map = {freq_str: station_name}  (e.g. {"5.9600": "Radio Romania Int. (ROU)"})
-          file_map = {filename: station_name}   (exact recording→station matches)
+        Returns (freq_map, file_map, quality_map) where:
+          freq_map  = {freq_str: station_name}
+          file_map  = {filename: station_name}
+          quality_map = {filename: {score, audio_score, noise_level}}
         """
-        freq_map = {}   # "5.9600" → station name
-        file_map = {}   # filename  → station name
+        freq_map = {}    # "5.9600" → station name
+        file_map = {}    # filename  → station name
+        quality_map = {} # filename  → quality dict
         try:
             with open(self.RATINGS_DB_PATH, "r") as f:
                 db = json.load(f)
@@ -130,27 +131,49 @@ class FilesController(WebpageController):
                     freq_map[freq_norm] = station_name
                 except (ValueError, TypeError):
                     pass
-                # Index individual recording filenames
+                # Index individual recording filenames with quality data
                 for rating in entry.get("ratings", []):
                     rec = rating.get("recording")
                     if rec:
                         file_map[rec] = station_name
+                        aq = rating.get("audio_quality")
+                        quality_map[rec] = {
+                            "score": rating.get("score"),
+                            "audio_score": aq.get("audio_score") if aq else None,
+                            "noise_level": aq.get("noise_level") if aq else None,
+                        }
         except (FileNotFoundError, json.JSONDecodeError, Exception) as e:
             logger.debug("_build_station_lookup: %s", e)
-        return freq_map, file_map
+        return freq_map, file_map, quality_map
 
     def _lookup_station(self, filename, info, freq_map, file_map):
-        """Find the station name for a recording.
-        First try exact filename match, then match by frequency."""
-        # 1. Exact filename match from ratings
+        """Find the station name for a recording."""
         if filename in file_map:
             return file_map[filename]
-        # 2. Match by frequency
         if info.get('freq') is not None:
             freq_norm = "%.4f" % info['freq']
             if freq_norm in freq_map:
                 return freq_map[freq_norm]
         return None
+
+    def _quality_html(self, filename, quality_map):
+        """Generate quality badge HTML for a recording."""
+        q = quality_map.get(filename)
+        if not q:
+            return ""
+        parts = []
+        score = q.get("score")
+        if isinstance(score, int) and score > 0:
+            stars = '★' * score + '☆' * (5 - score)
+            parts.append('<span class="q-stars">%s</span>' % stars)
+        audio_score = q.get("audio_score")
+        noise = q.get("noise_level")
+        if audio_score is not None:
+            noise_pct = int(noise * 100) if noise is not None else 0
+            cls = 'q-good' if audio_score >= 4 else ('q-fair' if audio_score >= 3 else 'q-poor')
+            parts.append('<span class="q-audio %s" title="Audio: %d/5, Rumore: %d%%">🔊%d/5 (📣%d%%)</span>' %
+                         (cls, audio_score, noise_pct, audio_score, noise_pct))
+        return ' '.join(parts)
 
     def _format_size(self, size_bytes):
         if size_bytes >= 1024 * 1024:
@@ -183,8 +206,8 @@ class FilesController(WebpageController):
     def template_variables(self):
         files = Storage.getSharedInstance().getStoredFiles()
 
-        # Build station-name lookup from ratings DB
-        freq_map, file_map = self._build_station_lookup()
+        # Build station-name + quality lookup from ratings DB
+        freq_map, file_map, quality_map = self._build_station_lookup()
 
         # Build file info list and sort by timestamp descending
         file_entries = []
@@ -214,8 +237,9 @@ class FilesController(WebpageController):
 
             duration_str = self._get_duration(filepath) if is_audio else ""
 
-            # Resolve station name
+            # Resolve station name and quality
             station_name = self._lookup_station(filename, info, freq_map, file_map)
+            quality_html = self._quality_html(filename, quality_map)
 
             file_entries.append({
                 'filename': filename,
@@ -226,6 +250,7 @@ class FilesController(WebpageController):
                 'size_str': size_str,
                 'duration_str': duration_str,
                 'station_name': station_name,
+                'quality_html': quality_html,
             })
 
         # Sort descending by sort_key (newest first)
@@ -340,16 +365,27 @@ class FilesController(WebpageController):
                 elif is_image:
                     player_html = '<a href="/files/%s" target="_blank"><img class="file-img-preview" src="/files/%s" alt="%s"/></a>' % (filename, filename, filename)
 
+                # Gemini AI button for audio files
+                gemini_btn = ''
+                if is_audio:
+                    gemini_btn = '<button class="btn btn-ai gemini-rec-btn" data-file="%s" title="Chiedi a Gemini AI">🤖</button>' % filename
+
                 buttons_html = (
+                    '%s'
                     '<a class="btn btn-dl" href="/files/%s" download title="Download">⬇</a>'
                     '<button class="btn btn-del file-delete" data-name="%s" title="Elimina">✕</button>'
-                ) % (filename, filename)
+                ) % (gemini_btn, filename, filename)
 
                 # Station name label (from EIBI/bookmark via ratings DB)
                 station_html = ""
                 if entry.get('station_name'):
                     safe_name = entry['station_name'].replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
                     station_html = '<span class="station-name">📻 %s</span>' % safe_name
+
+                # Quality badge row
+                quality_row = ''
+                if entry.get('quality_html'):
+                    quality_row = '<div class="card-quality">%s</div>' % entry['quality_html']
 
                 rows += (
                     '<div class="%s">'
@@ -361,8 +397,9 @@ class FilesController(WebpageController):
                     '<span class="file-actions">%s</span>'
                     '</div>'
                     '%s'
+                    '%s'
                     '</div>\n'
-                ) % (card_class, icon, filename, station_html, meta_html, buttons_html, player_html)
+                ) % (card_class, icon, filename, station_html, meta_html, buttons_html, quality_row, player_html)
 
             rows += '</div></div>\n'
 

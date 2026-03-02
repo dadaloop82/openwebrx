@@ -581,33 +581,33 @@ def analyze_recording_quality(mp3_path: str) -> Optional[Dict[str, Any]]:
         return None
 
     # -- Composite noise score (0=clean, 1=pure noise) ---
-    # Weights calibrated on real HF recordings:
-    #   - ac_peak is the strongest discriminator (0.93 = clean, 0.03 = noise)
-    #   - entropy is second best (0.36 = clean, 0.87 = noise)
-    #   - flatness, modulation, crest are secondary
+    # Weights calibrated on real HF recordings (v2 – stricter):
+    #   - entropy is the strongest discriminator (0.36 = clean, 0.87 = noise)
+    #   - ac_peak helps but is fooled by carrier/AGC periodic patterns
+    #   - crest, modulation, flatness are supporting indicators
     ac_noise = 1.0 - min(1.0, max(0.0, ac_peak))           # 0=periodic, 1=random
     ent_noise = min(1.0, max(0.0, (entropy - 0.3) / 0.6))  # map 0.3-0.9 → 0-1
-    flat_noise = min(1.0, max(0.0, flatness / 0.03))        # map 0-0.03 → 0-1
+    flat_noise = min(1.0, max(0.0, flatness / 0.02))        # map 0-0.02 → 0-1 (tighter)
     mod_noise = 1.0 - min(1.0, max(0.0, mod_index / 0.20))  # high mod = less noise
-    crest_noise = min(1.0, max(0.0, (crest - 3.5) / 2.5))   # >3.5 starts getting noisy
+    crest_noise = min(1.0, max(0.0, (crest - 3.0) / 2.0))   # >3.0 starts getting noisy
 
     noise_level = (
-        ac_noise * 0.40 +
-        ent_noise * 0.30 +
+        ac_noise * 0.25 +
+        ent_noise * 0.35 +
         flat_noise * 0.10 +
-        mod_noise * 0.10 +
-        crest_noise * 0.10
+        mod_noise * 0.15 +
+        crest_noise * 0.15
     )
     noise_level = min(1.0, max(0.0, noise_level))
 
-    # Map to 1-5 stars (never 0 — there IS a recording)
-    if noise_level >= 0.80:
+    # Map to 1-5 stars – stricter thresholds (v2)
+    if noise_level >= 0.55:
         audio_score = 1
-    elif noise_level >= 0.60:
-        audio_score = 2
     elif noise_level >= 0.40:
+        audio_score = 2
+    elif noise_level >= 0.25:
         audio_score = 3
-    elif noise_level >= 0.20:
+    elif noise_level >= 0.12:
         audio_score = 4
     else:
         audio_score = 5

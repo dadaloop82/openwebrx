@@ -28,7 +28,7 @@ from owrx.controllers.imageupload import ImageUploadController
 from owrx.controllers.auto_mode import AutoModeStatusController, AutoModeRatingsController, AutoModeRateController, AutoModeRecordingsController
 from owrx.controllers.recordings import RecordingsPageController, SchedulerStatusController
 from owrx.controllers.scan_api import ScanFrequenciesController
-from owrx.controllers.gemini_api import GeminiAnalyzeController, GeminiCaptureController, GeminiBookmarkController
+from owrx.controllers.gemini_api import GeminiAnalyzeController, GeminiCaptureController, GeminiBookmarkController, GeminiRecordingController
 from owrx.controllers.robots import RobotsController
 from owrx.controllers.system_stats import SystemStatsController
 from owrx.storage import Storage
@@ -207,6 +207,7 @@ class Router(object):
             StaticRoute("/api/gemini/analyze", GeminiAnalyzeController, method="POST"),
             StaticRoute("/api/gemini/capture", GeminiCaptureController, method="POST"),
             StaticRoute("/api/gemini/bookmark", GeminiBookmarkController, method="POST"),
+            StaticRoute("/api/gemini/analyze-recording", GeminiRecordingController, method="POST"),
             StaticRoute("/api/system/stats", SystemStatsController),
             StaticRoute("/recordings", RecordingsPageController),
             StaticRoute("/ban", ClientController, method="POST", options={"action": "ban"}),

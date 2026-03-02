@@ -194,4 +194,41 @@ $(function(){
         }).fail(function(){btn.prop('disabled',false).text('✕');alert('Errore')});
     });
 
+    // --- Gemini AI recording analysis ---
+    var _geminiFile=null;
+    $(document).on('click','.gemini-rec-btn',function(e){
+        e.preventDefault();e.stopPropagation();
+        _geminiFile=$(this).data('file');
+        $('#geminiFile').text('📁 '+_geminiFile);
+        $('#geminiResult').html('<span class="gm-loading">Premi "Analizza" per chiedere a Gemini...</span>');
+        $('#geminiModal').addClass('active');
+    });
+    $('#geminiClose').on('click',function(){$('#geminiModal').removeClass('active')});
+    $('#geminiModal').on('click',function(e){if(e.target===this)$(this).removeClass('active')});
+    $('#geminiAsk').on('click',function(){
+        if(!_geminiFile)return;
+        var btn=$(this);
+        btn.prop('disabled',true).text('⏳ Analisi in corso...');
+        $('#geminiResult').html('<span class="gm-loading">Invio audio a Gemini AI... potrebbe richiedere alcuni secondi.</span>');
+        $.ajax({
+            url:'/api/gemini/analyze-recording',
+            method:'POST',
+            contentType:'application/json',
+            data:JSON.stringify({filename:_geminiFile}),
+            timeout:60000
+        }).done(function(resp){
+            if(resp.text){
+                $('#geminiResult').text(resp.text);
+            } else if(resp.error){
+                $('#geminiResult').html('<span style="color:#f44">Errore: '+resp.error+'</span>');
+            }
+        }).fail(function(xhr){
+            var msg='Errore di comunicazione con Gemini';
+            try{var r=JSON.parse(xhr.responseText);if(r.error)msg=r.error}catch(e){}
+            $('#geminiResult').html('<span style="color:#f44">'+msg+'</span>');
+        }).always(function(){
+            btn.prop('disabled',false).text('🤖 Analizza');
+        });
+    });
+
 });

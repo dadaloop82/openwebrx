@@ -453,3 +453,110 @@ class GeminiBookmarkController(Controller):
                 content_type="application/json", code=500,
                 headers={"Access-Control-Allow-Origin": "*"}
             )
+
+
+class GeminiRecordingController(Controller):
+    """POST /api/gemini/analyze-recording - analyze a saved recording with Gemini AI"""
+
+    RECORDINGS_DIR = "/var/lib/openwebrx/recordings"
+
+    def indexAction(self):
+        try:
+            body = self.get_body()
+            if not body:
+                self.send_response(
+                    json.dumps({"error": "Empty request body"}),
+                    content_type="application/json", code=400,
+                    headers={"Access-Control-Allow-Origin": "*"}
+                )
+                return
+
+            data = json.loads(body.decode('utf-8'))
+            filename = data.get('filename', '').strip()
+            if not filename or '..' in filename or '/' in filename:
+                self.send_response(
+                    json.dumps({"error": "Invalid filename"}),
+                    content_type="application/json", code=400,
+                    headers={"Access-Control-Allow-Origin": "*"}
+                )
+                return
+
+            filepath = os.path.join(self.RECORDINGS_DIR, filename)
+            if not os.path.isfile(filepath):
+                self.send_response(
+                    json.dumps({"error": f"File not found: {filename}"}),
+                    content_type="application/json", code=404,
+                    headers={"Access-Control-Allow-Origin": "*"}
+                )
+                return
+
+            # Convert MP3 to WAV using ffmpeg (Gemini needs WAV)
+            import subprocess
+            import tempfile
+            with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as tmp:
+                tmp_path = tmp.name
+            try:
+                result = subprocess.run(
+                    ['ffmpeg', '-y', '-i', filepath, '-ar', '16000', '-ac', '1',
+                     '-sample_fmt', 's16', '-t', '30', tmp_path],
+                    capture_output=True, timeout=30
+                )
+                if result.returncode != 0:
+                    self.send_response(
+                        json.dumps({"error": "Failed to decode audio file"}),
+                        content_type="application/json", code=500,
+                        headers={"Access-Control-Allow-Origin": "*"}
+                    )
+                    return
+                with open(tmp_path, 'rb') as wf:
+                    audio_wav = wf.read()
+            finally:
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
+
+            # Parse freq from filename (e.g. 6.0300MHz_20250101_120000.mp3)
+            freq_str = ""
+            import re as _re
+            m = _re.match(r'([\d.]+)\s*MHz', filename)
+            if m:
+                freq_str = m.group(1) + " MHz"
+
+            audio_dur = (len(audio_wav) - 44) / (16000 * 2) if len(audio_wav) > 44 else 0
+
+            prompt = f"""Sei un esperto analista di segnali radio e telecomunicazioni. Ti invio un campione audio registrato da un ricevitore SDR (Software Defined Radio).
+
+**File:** {filename}
+**Frequenza:** {freq_str if freq_str else 'sconosciuta'}
+**Durata audio:** {audio_dur:.1f} secondi
+**Data/Ora UTC:** {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}
+**Posizione ricevitore:** Bolzano, Italia (Regione ITU 1)
+
+Ascolta attentamente l'audio allegato e rispondi in italiano, in modo CONCISO (max 15-20 righe):
+
+1. **Cosa senti?** Descrivi il contenuto audio (voce, musica, dati digitali, rumore, portante, interferenze, etc.)
+2. **Lingua:** Se c'è parlato, in quale lingua?
+3. **Identificazione:** Quale stazione o servizio potrebbe essere? Basati sulla frequenza, l'orario e la posizione del ricevitore.
+4. **Qualità:** Come giudichi la qualità della ricezione? (ottima/buona/discreta/scarsa/pessima)
+5. **Note:** Eventuali informazioni utili per l'ascoltatore.
+"""
+            custom_q = data.get('question', '')
+            if custom_q:
+                prompt += f"\n**Domanda aggiuntiva:** {custom_q}\n"
+
+            response_text = _call_gemini(prompt, audio_wav)
+
+            self.send_response(
+                json.dumps({"text": response_text, "filename": filename}),
+                content_type="application/json",
+                headers={"Access-Control-Allow-Origin": "*"}
+            )
+
+        except Exception as e:
+            logger.error("Gemini recording analysis error: %s", e, exc_info=True)
+            self.send_response(
+                json.dumps({"error": str(e)}),
+                content_type="application/json", code=500,
+                headers={"Access-Control-Allow-Origin": "*"}
+            )
