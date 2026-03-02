@@ -18,6 +18,17 @@ class FileController(AssetsController):
     def getFilePath(self, file):
         return Storage.getFilePath(file)
 
+    def serve_file(self, file, content_type=None):
+        # Add CORS header so the schedule widget (port 8080) can fetch audio for spectrograms
+        self._cors_file = True
+        super().serve_file(file, content_type)
+
+    def send_response(self, content, code=200, **kwargs):
+        headers = kwargs.pop("headers", None) or {}
+        if getattr(self, "_cors_file", False):
+            headers["Access-Control-Allow-Origin"] = "*"
+        super().send_response(content, code=code, headers=headers, **kwargs)
+
 
 class FilesController(WebpageController):
     def __init__(self, handler, request, options):
