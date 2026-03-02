@@ -465,18 +465,23 @@ body{{font-family:Arial,sans-serif;background:linear-gradient(135deg,#1e3c72,#2a
 .aq-info.aq-mid{{background:rgba(255,193,7,0.3);color:#FFF176}}
 .aq-info.aq-high{{background:rgba(76,175,80,0.35);color:#A5D6A7}}
 .rec-cards{{margin-top:8px}}
-.rec-card{{background:rgba(0,0,0,0.35);border-radius:10px;margin-bottom:6px;overflow:hidden;border:1px solid rgba(255,255,255,0.08);transition:all 0.2s}}
-.rec-card:hover{{border-color:rgba(255,87,34,0.4);background:rgba(0,0,0,0.45)}}
-.rec-card-top{{display:flex;align-items:center;gap:8px;padding:8px 12px;flex-wrap:wrap;font-size:0.82em}}
-.rec-card-icon{{font-size:1.1em}}
-.rec-card-date{{font-family:monospace;color:#E0E0E0;font-weight:600}}
-.rec-card-dur{{color:#81C784;font-weight:bold}}
-.rec-card-size{{color:#90CAF9;opacity:0.7}}
-.rec-card-score{{color:#FFD700;letter-spacing:1px}}
-.rec-card-dl{{color:#64B5F6;text-decoration:none;font-size:0.9em;opacity:0.7;transition:opacity 0.2s}}
-.rec-card-dl:hover{{opacity:1}}
-.rec-card-player{{padding:4px 12px 8px}}
-.rec-card-player audio{{width:100%;height:32px;border-radius:6px}}
+.rec-card{{background:#0d1117;border-radius:10px;margin-bottom:8px;overflow:hidden;border:1px solid rgba(255,255,255,0.08);transition:all 0.2s}}
+.rec-card:hover{{border-color:rgba(255,87,34,0.4);box-shadow:0 0 12px rgba(255,87,34,0.15)}}
+.rec-card-header{{display:flex;align-items:center;gap:6px;padding:7px 12px;background:rgba(255,255,255,0.04);flex-wrap:wrap;font-size:0.8em;border-bottom:1px solid rgba(255,255,255,0.06)}}
+.rec-card-header .rc-icon{{font-size:1em}}
+.rec-card-header .rc-date{{font-family:monospace;color:#E0E0E0;font-weight:600}}
+.rec-card-header .rc-dur{{color:#81C784;font-weight:bold;background:rgba(76,175,80,0.15);padding:1px 7px;border-radius:8px}}
+.rec-card-header .rc-size{{color:#90CAF9;opacity:0.65;font-size:0.9em}}
+.rec-card-header .rc-score{{color:#FFD700;letter-spacing:1px}}
+.rec-card-header .rc-dl{{color:#64B5F6;text-decoration:none;opacity:0.5;transition:opacity 0.2s;margin-left:auto}}
+.rec-card-header .rc-dl:hover{{opacity:1}}
+.rec-viz{{position:relative;cursor:pointer;background:#060a14;height:52px;overflow:hidden}}
+.rec-viz canvas.rv-spec{{display:block;width:100%;height:28px}}
+.rec-viz canvas.rv-wave{{display:block;width:100%;height:24px}}
+.rec-viz .rv-overlay{{position:absolute;top:0;left:0;width:0%;height:100%;background:rgba(0,212,255,0.12);pointer-events:none;transition:width 0.06s linear}}
+.rec-viz .rv-loading{{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:0.7em;color:#335;font-family:monospace}}
+.rec-card-bottom{{display:flex;align-items:center;gap:6px;padding:4px 10px 6px}}
+.rec-card-bottom audio{{flex:1;height:28px;border-radius:4px;min-width:0}}
 .rec-no-audio{{font-size:0.78em;color:#999;padding:4px 0;font-style:italic}}
 .tx-heard{{color:#81C784;cursor:pointer;padding:3px 10px;border-radius:15px;background:rgba(255,255,255,0.1);transition:all 0.2s;user-select:none}}
 .tx-heard:hover{{background:rgba(255,255,255,0.2);transform:scale(1.05)}}
@@ -912,61 +917,198 @@ async function saveScanSettings(){{
   }}
 
   function renderRecordingCards(recordings, lastPositive){{
-    // Merge: use recordings as primary, annotate with score from lastPositive
     const allRecs = [];
     const usedFiles = new Set();
-    // First: recordings from filesystem (have audio)
     if(recordings && recordings.length > 0){{
       recordings.forEach(rec => {{
         const dateStr = rec.date ? rec.date.substring(6,8)+'/'+rec.date.substring(4,6) : '';
         const timeStr = rec.time ? rec.time.substring(0,2)+':'+rec.time.substring(2,4) : '';
-        // Find matching score from lastPositive
-        let score = 0;
-        let src = '';
+        let score = 0, src = '';
         if(lastPositive){{
           const match = lastPositive.find(p => p.recording === rec.filename);
           if(match){{ score = match.score || 0; src = match.type === 'manuale' ? '👤' : '🤖'; usedFiles.add(rec.filename); }}
         }}
-        allRecs.push({{ filename: rec.filename, date: dateStr, time: timeStr, dur: rec.duration_s||0, size: rec.size||0, score: score, src: src, hasAudio: true }});
+        allRecs.push({{ filename: rec.filename, date: dateStr, time: timeStr, dur: rec.duration_s||0, size: rec.size||0, score: score, src: src }});
       }});
     }}
-    // Then: lastPositive entries with recordings NOT already listed
     if(lastPositive){{
       lastPositive.forEach(p => {{
         if(p.recording && !usedFiles.has(p.recording)){{
           try{{
             const d = new Date(p.ts);
-            const dd = String(d.getUTCDate()).padStart(2,'0');
-            const mm = String(d.getUTCMonth()+1).padStart(2,'0');
-            const hh = String(d.getUTCHours()).padStart(2,'0');
-            const mn = String(d.getUTCMinutes()).padStart(2,'0');
-            allRecs.push({{ filename: p.recording, date: dd+'/'+mm, time: hh+':'+mn, dur: 0, size: 0, score: p.score||0, src: p.type==='manuale'?'👤':'🤖', hasAudio: true }});
+            allRecs.push({{ filename: p.recording, date: String(d.getUTCDate()).padStart(2,'0')+'/'+String(d.getUTCMonth()+1).padStart(2,'0'), time: String(d.getUTCHours()).padStart(2,'0')+':'+String(d.getUTCMinutes()).padStart(2,'0'), dur: 0, size: 0, score: p.score||0, src: p.type==='manuale'?'👤':'🤖' }});
           }}catch(e){{}}
           usedFiles.add(p.recording);
         }}
       }});
     }}
     if(allRecs.length === 0) return '';
-    // Show last 5 most recent recordings
     const show = allRecs.slice(-5).reverse();
-    let html = '<div class="rec-cards" onclick="event.stopPropagation()">';
-    show.forEach(rec => {{
+    const cardId = 'rc'+Math.random().toString(36).substring(2,8);
+    let html = '<div class="rec-cards" id="'+cardId+'" onclick="event.stopPropagation()">';
+    show.forEach((rec, idx) => {{
       const safeFile = rec.filename.replace(/&/g,'&amp;').replace(/'/g,'&#39;').replace(/"/g,'&quot;');
       const starsHtml = rec.score > 0 ? ('★'.repeat(rec.score)+'☆'.repeat(5-rec.score)) : '';
-      html += '<div class="rec-card">';
-      html += '<div class="rec-card-top">';
-      html += '<span class="rec-card-icon">🎵</span>';
-      html += '<span class="rec-card-date">'+rec.date+' '+rec.time+'</span>';
-      if(rec.dur > 0) html += '<span class="rec-card-dur">'+fmtDurRec(rec.dur)+'</span>';
-      if(rec.size > 0) html += '<span class="rec-card-size">'+fmtSize(rec.size)+'</span>';
-      if(starsHtml) html += '<span class="rec-card-score" title="'+(rec.src||'')+'">'+starsHtml+'</span>';
-      html += '<a class="rec-card-dl" href="'+owrxHost+'/files/'+encodeURIComponent(rec.filename)+'" download title="Download">⬇</a>';
+      const audioUrl = owrxHost+'/files/'+encodeURIComponent(rec.filename);
+      html += '<div class="rec-card" data-idx="'+idx+'">';
+      /* header row */
+      html += '<div class="rec-card-header">';
+      html += '<span class="rc-icon">🎵</span>';
+      html += '<span class="rc-date">'+rec.date+' '+rec.time+'</span>';
+      if(rec.dur > 0) html += '<span class="rc-dur">'+fmtDurRec(rec.dur)+'</span>';
+      if(rec.size > 0) html += '<span class="rc-size">'+fmtSize(rec.size)+'</span>';
+      if(starsHtml) html += '<span class="rc-score" title="'+(rec.src||'')+'">'+starsHtml+'</span>';
+      html += '<a class="rc-dl" href="'+audioUrl+'" download title="Download">⬇</a>';
       html += '</div>';
-      html += '<div class="rec-card-player"><audio controls preload="none" src="'+owrxHost+'/files/'+encodeURIComponent(rec.filename)+'"></audio></div>';
+      /* spectrogram + waveform viz */
+      html += '<div class="rec-viz"><canvas class="rv-spec"></canvas><canvas class="rv-wave"></canvas><div class="rv-overlay"></div><span class="rv-loading">caricamento...</span></div>';
+      /* audio player */
+      html += '<div class="rec-card-bottom"><audio controls preload="none" src="'+audioUrl+'"></audio></div>';
       html += '</div>';
     }});
     html += '</div>';
+    /* Schedule viz rendering after DOM insertion */
+    setTimeout(function(){{ initRecViz(cardId); }}, 80);
     return html;
+  }}
+
+  /* ---- FFT engine (Cooley-Tukey radix-2 in-place) ---- */
+  function _fft(re, im){{
+    const n = re.length;
+    for(let i=1,j=0; i<n; i++){{
+      let bit = n>>1;
+      for(; j&bit; bit>>=1) j ^= bit;
+      j ^= bit;
+      if(i<j){{ [re[i],re[j]]=[re[j],re[i]]; [im[i],im[j]]=[im[j],im[i]]; }}
+    }}
+    for(let len=2; len<=n; len<<=1){{
+      const ang = 2*Math.PI/len;
+      const wR = Math.cos(ang), wI = Math.sin(ang);
+      for(let i=0; i<n; i+=len){{
+        let curR=1, curI=0;
+        for(let j=0; j<len/2; j++){{
+          const tR = curR*re[i+j+len/2] - curI*im[i+j+len/2];
+          const tI = curR*im[i+j+len/2] + curI*re[i+j+len/2];
+          re[i+j+len/2] = re[i+j]-tR; im[i+j+len/2] = im[i+j]-tI;
+          re[i+j] += tR; im[i+j] += tI;
+          const nR = curR*wR - curI*wI; curI = curR*wI + curI*wR; curR = nR;
+        }}
+      }}
+    }}
+  }}
+
+  function _specColor(v){{
+    /* 0→black, 0.25→blue, 0.5→cyan, 0.75→yellow, 1→white */
+    let r=0,g=0,b=0;
+    if(v<0.25){{ const t=v/0.25; b=t; }}
+    else if(v<0.5){{ const t=(v-0.25)/0.25; g=t; b=1; }}
+    else if(v<0.75){{ const t=(v-0.5)/0.25; r=t; g=1; b=1-t; }}
+    else{{ const t=(v-0.75)/0.25; r=1; g=1; b=t; }}
+    return 'rgb('+Math.round(r*255)+','+Math.round(g*255)+','+Math.round(b*255)+')';
+  }}
+
+  function drawRecSpectrogram(canvas, data, sampleRate){{
+    const W = canvas.clientWidth, H = canvas.clientHeight;
+    if(!W||!H) return;
+    canvas.width = W*2; canvas.height = H*2;
+    const ctx = canvas.getContext('2d');
+    ctx.scale(2,2);
+    const fftSize = 256;
+    const numCols = W;
+    const hop = Math.max(1, Math.floor(data.length/numCols));
+    const hann = new Float32Array(fftSize);
+    for(let i=0;i<fftSize;i++) hann[i]=0.5*(1-Math.cos(2*Math.PI*i/(fftSize-1)));
+    const numBins = fftSize/2;
+    for(let col=0; col<numCols; col++){{
+      const start = col*hop;
+      const re = new Float32Array(fftSize);
+      const im = new Float32Array(fftSize);
+      for(let i=0;i<fftSize;i++) re[i] = (start+i<data.length) ? data[start+i]*hann[i] : 0;
+      _fft(re, im);
+      for(let row=0; row<numBins; row++){{
+        const mag = Math.sqrt(re[row]*re[row]+im[row]*im[row]);
+        let dB = (20*Math.log10(mag+1e-10)+60)/60;
+        dB = Math.max(0, Math.min(1, dB));
+        ctx.fillStyle = _specColor(dB);
+        ctx.fillRect(col, H-1-(row/(numBins-1))*(H-1), 1, 1);
+      }}
+    }}
+  }}
+
+  function drawRecWaveform(canvas, data){{
+    const W = canvas.clientWidth, H = canvas.clientHeight;
+    if(!W||!H) return;
+    canvas.width = W*2; canvas.height = H*2;
+    const ctx = canvas.getContext('2d');
+    ctx.scale(2,2);
+    ctx.fillStyle = '#0a0e1a';
+    ctx.fillRect(0,0,W,H);
+    const binsPerPx = data.length/W;
+    for(let x=0; x<W; x++){{
+      const s = Math.floor(x*binsPerPx), e = Math.floor((x+1)*binsPerPx);
+      let peak = 0;
+      for(let i=s; i<e&&i<data.length; i++) peak = Math.max(peak, Math.abs(data[i]));
+      const barH = peak*H;
+      /* color ramp: low→teal, high→orange-red */
+      const t = peak;
+      const r = Math.round(20 + t*235);
+      const g = Math.round(180 - t*100);
+      const b = Math.round(160 - t*140);
+      ctx.fillStyle = 'rgb('+r+','+g+','+b+')';
+      ctx.fillRect(x, H-barH, 1, barH);
+    }}
+  }}
+
+  const _recVizAudioCtx = new (window.AudioContext || window.webkitAudioContext)({{sampleRate:22050}});
+
+  function initRecViz(containerId){{
+    const wrap = document.getElementById(containerId);
+    if(!wrap) return;
+    const cards = wrap.querySelectorAll('.rec-card');
+    cards.forEach(function(card){{
+      const audio = card.querySelector('audio');
+      const viz = card.querySelector('.rec-viz');
+      const specC = card.querySelector('.rv-spec');
+      const waveC = card.querySelector('.rv-wave');
+      const overlay = card.querySelector('.rv-overlay');
+      const loading = card.querySelector('.rv-loading');
+      if(!audio||!viz||!specC||!waveC) return;
+      let vizDone = false;
+      function loadViz(){{
+        if(vizDone) return;
+        vizDone = true;
+        const src = audio.src || audio.querySelector('source')?.src;
+        if(!src) return;
+        fetch(src).then(r=>r.arrayBuffer()).then(function(buf){{
+          return _recVizAudioCtx.decodeAudioData(buf);
+        }}).then(function(decoded){{
+          const pcm = decoded.getChannelData(0);
+          drawRecSpectrogram(specC, pcm, decoded.sampleRate);
+          drawRecWaveform(waveC, pcm);
+          if(loading) loading.style.display='none';
+        }}).catch(function(e){{ if(loading) loading.textContent='⚠'; }});
+      }}
+      /* Lazy-load: fetch when audio starts playing or on hover */
+      audio.addEventListener('play', loadViz, {{once:true}});
+      viz.addEventListener('mouseenter', loadViz, {{once:true}});
+      /* Playback progress overlay */
+      audio.addEventListener('timeupdate', function(){{
+        if(audio.duration > 0){{
+          overlay.style.width = (audio.currentTime/audio.duration*100)+'%';
+        }}
+      }});
+      /* Click-to-seek on viz */
+      viz.addEventListener('click', function(e){{
+        if(audio.duration){{
+          const rect = viz.getBoundingClientRect();
+          audio.currentTime = ((e.clientX - rect.left)/rect.width) * audio.duration;
+          if(audio.paused) audio.play();
+        }} else {{
+          loadViz();
+          audio.play();
+        }}
+      }});
+    }});
   }}
 
   function renderQualityBadge(r, key){{
