@@ -58,6 +58,11 @@ body{margin-bottom:.5rem;background:#1a1a2e;color:#e0e0e0}
     overflow:hidden;text-overflow:ellipsis;
     max-width:220px;flex-shrink:1;font-size:.78rem;
 }
+.station-name{
+    color:#ffa726;font-weight:700;font-size:.82rem;
+    overflow:hidden;text-overflow:ellipsis;
+    max-width:260px;flex-shrink:1;white-space:nowrap;
+}
 .file-meta{
     display:flex;gap:8px;align-items:center;
     font-size:.74rem;color:#999;white-space:nowrap;flex:1;min-width:0;

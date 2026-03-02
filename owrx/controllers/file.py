@@ -31,6 +31,9 @@ class FileController(AssetsController):
 
 
 class FilesController(WebpageController):
+    # Path to signal ratings DB (maps freq|station_name → ratings)
+    RATINGS_DB_PATH = "/var/lib/openwebrx/signal_ratings.json"
+
     def __init__(self, handler, request, options):
         self.authentication = Authentication()
         self.user  = self.authentication.getUser(request)
@@ -100,6 +103,55 @@ class FilesController(WebpageController):
 
         return info
 
+    def _build_station_lookup(self):
+        """Build freq_mhz → station_name mapping from signal_ratings.json.
+
+        Keys in the JSON are like "5.96|Radio Romania Int. (ROU)".
+        We also index by recording filename for exact matching.
+        Returns (freq_map, file_map) where:
+          freq_map = {freq_str: station_name}  (e.g. {"5.9600": "Radio Romania Int. (ROU)"})
+          file_map = {filename: station_name}   (exact recording→station matches)
+        """
+        freq_map = {}   # "5.9600" → station name
+        file_map = {}   # filename  → station name
+        try:
+            with open(self.RATINGS_DB_PATH, "r") as f:
+                db = json.load(f)
+            for key, entry in db.items():
+                if "|" not in key:
+                    continue
+                freq_str, station_name = key.split("|", 1)
+                station_name = station_name.strip()
+                if not station_name:
+                    continue
+                # Normalize freq to 4-decimal string for matching
+                try:
+                    freq_norm = "%.4f" % float(freq_str)
+                    freq_map[freq_norm] = station_name
+                except (ValueError, TypeError):
+                    pass
+                # Index individual recording filenames
+                for rating in entry.get("ratings", []):
+                    rec = rating.get("recording")
+                    if rec:
+                        file_map[rec] = station_name
+        except (FileNotFoundError, json.JSONDecodeError, Exception) as e:
+            logger.debug("_build_station_lookup: %s", e)
+        return freq_map, file_map
+
+    def _lookup_station(self, filename, info, freq_map, file_map):
+        """Find the station name for a recording.
+        First try exact filename match, then match by frequency."""
+        # 1. Exact filename match from ratings
+        if filename in file_map:
+            return file_map[filename]
+        # 2. Match by frequency
+        if info.get('freq') is not None:
+            freq_norm = "%.4f" % info['freq']
+            if freq_norm in freq_map:
+                return freq_map[freq_norm]
+        return None
+
     def _format_size(self, size_bytes):
         if size_bytes >= 1024 * 1024:
             return "%.1f MB" % (size_bytes / 1024 / 1024)
@@ -131,6 +183,9 @@ class FilesController(WebpageController):
     def template_variables(self):
         files = Storage.getSharedInstance().getStoredFiles()
 
+        # Build station-name lookup from ratings DB
+        freq_map, file_map = self._build_station_lookup()
+
         # Build file info list and sort by timestamp descending
         file_entries = []
         for filename in files:
@@ -159,6 +214,9 @@ class FilesController(WebpageController):
 
             duration_str = self._get_duration(filepath) if is_audio else ""
 
+            # Resolve station name
+            station_name = self._lookup_station(filename, info, freq_map, file_map)
+
             file_entries.append({
                 'filename': filename,
                 'filepath': filepath,
@@ -167,6 +225,7 @@ class FilesController(WebpageController):
                 'is_image': is_image,
                 'size_str': size_str,
                 'duration_str': duration_str,
+                'station_name': station_name,
             })
 
         # Sort descending by sort_key (newest first)
@@ -286,17 +345,24 @@ class FilesController(WebpageController):
                     '<button class="btn btn-del file-delete" data-name="%s" title="Elimina">✕</button>'
                 ) % (filename, filename)
 
+                # Station name label (from EIBI/bookmark via ratings DB)
+                station_html = ""
+                if entry.get('station_name'):
+                    safe_name = entry['station_name'].replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                    station_html = '<span class="station-name">📻 %s</span>' % safe_name
+
                 rows += (
                     '<div class="%s">'
                     '<div class="card-top">'
                     '<span class="file-icon">%s</span>'
                     '<span class="file-name">%s</span>'
+                    '%s'
                     '<span class="file-meta">%s</span>'
                     '<span class="file-actions">%s</span>'
                     '</div>'
                     '%s'
                     '</div>\n'
-                ) % (card_class, icon, filename, meta_html, buttons_html, player_html)
+                ) % (card_class, icon, filename, station_html, meta_html, buttons_html, player_html)
 
             rows += '</div></div>\n'
 
