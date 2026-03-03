@@ -25,10 +25,8 @@ import logging
 import threading
 import time
 import json
-import struct
 import subprocess
 import wave
-import re as _re
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any, Tuple
 from enum import Enum
@@ -297,7 +295,7 @@ class HeadlessRecorder:
 
         # Prepare WAV output
         os.makedirs(RECORDINGS_DIR, exist_ok=True)
-        ts_str = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        ts_str = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         freq_mhz = freq_hz / 1e6
         wav_path = os.path.join(RECORDINGS_DIR, "temp_headless_{}.wav".format(ts_str))
 
@@ -375,7 +373,7 @@ class HeadlessRecorder:
         mp3_path = os.path.join(RECORDINGS_DIR, mp3_name)
         title = station_name or "Unknown"
         comment = "{:.4f} MHz - {} UTC".format(
-            freq_mhz, datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"))
+            freq_mhz, datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"))
 
         try:
             subprocess.run(
@@ -418,8 +416,8 @@ class HeadlessRecorder:
         elif mode == "usb":
             return np.real(iq).astype(np.float64)
         elif mode == "lsb":
-            # LSB: conjugate mirrors the spectrum, then take real part
-            return np.real(np.conj(iq)).astype(np.float64)
+            # LSB: spectral inversion via negated imaginary part
+            return -np.imag(iq).astype(np.float64)
         elif mode in ("nfm", "wfm"):
             # FM discriminator: phase difference between successive samples
             if len(iq) < 2:
@@ -992,13 +990,19 @@ class AutoModeOrchestrator:
                 # Skip EIBI events not receivable from Bolzano
                 if source == "EIBI":
                     target = ev.get("target", "")
-                    if target and target not in BOLZANO_RECEIVABLE_TARGETS:
-                        continue
+                    # Handle compound targets like "Eu,NAf" or "CEu/SEu"
+                    if target:
+                        target_parts = [t.strip() for t in target.replace('/', ',').split(',')]
+                        if not any(tp in BOLZANO_RECEIVABLE_TARGETS for tp in target_parts):
+                            continue
 
                 if end_str and ":" in end_str:
                     try:
                         eh, em = map(int, end_str.split(":"))
                         end = eh * 60 + em
+                        # Normalize midnight-crossing: if end < start, it wraps past 00:00
+                        if end < start:
+                            end += day_min
                     except (ValueError, TypeError):
                         end = start + (dur_min if dur_min else 30)
                 elif dur_min:
@@ -1107,23 +1111,35 @@ class AutoModeOrchestrator:
 
             if detected:
                 signal_count += 1
-                # Start headless recorder on first signal detection
+                # Start headless recorder on first signal detection (with budget check)
                 if not headless_started and source is not None and HAS_SCIPY:
-                    try:
+                    # Check budget for headless recording too
+                    budget_ok = True
+                    if station_name:
+                        skey = "{}|{}".format(freq_hz / 1e6, station_name)
+                        budget_ok = self._rec_budget_ok(skey)
+                    if budget_ok:
                         try:
-                            samp_rate = source.getProps()["samp_rate"]
-                        except (KeyError, TypeError):
-                            samp_rate = 2400000
-                        self._headless_rec.start(source, freq_hz, mode,
-                                                  station_name, samp_rate)
-                        headless_started = True
-                    except Exception as e:
-                        logger.warning("HeadlessRecorder start failed: %s", e)
+                            try:
+                                samp_rate = source.getProps()["samp_rate"]
+                            except (KeyError, TypeError):
+                                samp_rate = 2400000
+                            self._headless_rec.start(source, freq_hz, mode,
+                                                      station_name, samp_rate)
+                            headless_started = True
+                        except Exception as e:
+                            logger.warning("HeadlessRecorder start failed: %s", e)
+                    else:
+                        logger.info("SKIP headless recording — budget exhausted for '%s'", station_name)
 
         # Stop headless recorder (finishes WAV → MP3 conversion)
         rec_filename = None
         if headless_started:
             rec_filename = self._headless_rec.stop()
+            # Charge headless recording time to budget
+            if station_name:
+                skey = "{}|{}".format(freq_hz / 1e6, station_name)
+                self._rec_budget_add(skey, dwell_seconds)
 
         ratio = signal_count / max(total_samples, 1)
         avg_snr = self._iq_monitor.get_avg_snr()

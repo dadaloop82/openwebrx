@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """OpenWebRX Schedule Widget v2 - Con modi, bandwidth e decoder"""
 from datetime import datetime, timedelta, timezone
-import json, sys, os
+import json, sys, os, shutil, html as html_lib
 
 OPENWEBRX_URL = "http://192.168.1.132:8073"
 LOG_FILE = "/var/www/html/sdr-transmissions-log.json"
@@ -116,11 +116,26 @@ def get_tx_log(tx, log_data):
         'hear_count': 0
     })
 
+_settings_cache = {'data': None, 'mtime': 0}
+def _load_settings_cached():
+    """Carica settings.json con cache basata su mtime"""
+    path = '/var/lib/openwebrx/settings.json'
+    try:
+        mt = os.path.getmtime(path)
+        if _settings_cache['data'] is not None and mt == _settings_cache['mtime']:
+            return _settings_cache['data']
+        with open(path, 'r') as f:
+            data = json.load(f)
+        _settings_cache['data'] = data
+        _settings_cache['mtime'] = mt
+        return data
+    except Exception:
+        return _settings_cache['data'] or {}
+
 def check_profile_coverage(freq_mhz):
     """Verifica se frequenza è coperta da profilo OpenWebRX esistente"""
     try:
-        with open('/var/lib/openwebrx/settings.json', 'r') as f:
-            settings = json.load(f)
+        settings = _load_settings_cached()
         
         freq_hz = float(freq_mhz) * 1e6
         
@@ -187,7 +202,7 @@ def create_profile_for_frequency(freq_mhz, description="Auto-generated"):
         
         # Backup
         backup_path = f"{settings_path}.bak_auto_{int(datetime.now(timezone.utc).timestamp())}"
-        os.system(f"cp {settings_path} {backup_path}")
+        shutil.copy2(settings_path, backup_path)
         
         # Salva
         with open(settings_path, 'w') as f:
@@ -220,7 +235,7 @@ def build_openwebrx_url(freq_mhz, mode, bandwidth_khz=None, decoder=None, tx_typ
     _, profile_name = check_profile_coverage(float(freq_mhz))
     
     # Formato con PATCH: #freq=XXX,mod=YYY,secondary_mod=ZZZ,profile=WWW,sql=-150
-    url = f"http://192.168.1.132:8073/#freq={freq_hz},mod={mode_lower}"
+    url = f"{OPENWEBRX_URL}/#freq={freq_hz},mod={mode_lower}"
     if secondary_mod:
         url += f",secondary_mod={secondary_mod}"
     url += f",profile={profile_name},sql=-150"
@@ -383,13 +398,17 @@ def get_external_transmissions(now, max_hours=24):
     except Exception:
         return []
 
-    now_min = now.hour * 60 + now.minute
+    now_frac = now.hour * 60 + now.minute + now.second / 60.0  # sub-minute precision
+    now_min = int(now_frac)  # integer version for on-air check
     best = {}  # (freq, desc) → best event dict
 
     for ev in data.get("events", []):
         target = ev.get("target", "")
-        if target and target not in BOLZANO_RECEIVABLE_TARGETS:
-            continue
+        # Handle compound targets like "Eu,NAf" or "CEu/SEu"
+        if target:
+            target_parts = [t.strip() for t in target.replace('/', ',').split(',')]
+            if not any(tp in BOLZANO_RECEIVABLE_TARGETS for tp in target_parts):
+                continue
         t_str = ev.get("time_utc", "")
         try:
             h, m = map(int, t_str.split(':'))
@@ -403,6 +422,9 @@ def get_external_transmissions(now, max_hours=24):
             try:
                 eh, em = map(int, end_str.split(":"))
                 end_min = eh * 60 + em
+                # Normalize midnight-crossing: if end < start, it wraps past 00:00
+                if end_min < start_min:
+                    end_min += 1440
             except ValueError:
                 end_min = start_min + (dur_min if dur_min else 30)
         elif dur_min:
@@ -410,6 +432,7 @@ def get_external_transmissions(now, max_hours=24):
         else:
             end_min = start_min + 30
 
+        # On-air check with midnight-crossing support
         if end_min > 1440:
             on_air = now_min >= start_min or now_min < end_min % 1440
         else:
@@ -419,11 +442,11 @@ def get_external_transmissions(now, max_hours=24):
         end_disp = f"{end_abs // 60:02d}:{end_abs % 60:02d}"
 
         if on_air:
-            # minutes_to_end: how many minutes until the broadcast ends
-            if end_min > 1440 and now_min >= start_min:
-                minutes_to_end = (1440 - now_min) + end_abs
+            # minutes_to_end with sub-minute precision
+            if end_min > 1440 and now_frac >= start_min:
+                minutes_to_end = (1440 - now_frac) + end_abs
             else:
-                minutes_to_end = end_abs - now_min
+                minutes_to_end = end_abs - now_frac
             sort_key = (0, minutes_to_end)  # on-air: soonest-ending first (most urgent)
             tx_time = now.replace(hour=h, minute=m, second=0, microsecond=0)
             delta_minutes = (tx_time - now).total_seconds() / 60
@@ -472,15 +495,24 @@ def get_next_transmissions(count=15):
     for tx in get_transmissions():
         h, m = map(int, tx['time'].split(':'))
         tx_time = now.replace(hour=h, minute=m, second=0, microsecond=0)
-        if tx_time < now: tx_time += timedelta(days=1)
         delta_minutes = (tx_time - now).total_seconds() / 60
 
         # Includi eventi iniziati fino a 60 minuti fa (mostra "in corso")
-        if delta_minutes >= -60:
-            on_air = delta_minutes < 0
-            sk = (0, 60 + delta_minutes) if on_air else (1, delta_minutes)
+        if -60 <= delta_minutes < 0:
+            # On-air: recently started local event
+            sk = (0, 60 + delta_minutes)  # urgency: closer to end = lower
             with_time.append({**tx, 'datetime': tx_time, 'target_time': tx_time,
-                              'delta_minutes': delta_minutes, 'on_air': on_air,
+                              'delta_minutes': delta_minutes, 'on_air': True,
+                              'end_utc': None, 'minutes_to_end': None,
+                              '_sort_key': sk})
+        else:
+            # Upcoming: push to tomorrow if in the past
+            if tx_time < now:
+                tx_time += timedelta(days=1)
+                delta_minutes = (tx_time - now).total_seconds() / 60
+            sk = (1, delta_minutes)
+            with_time.append({**tx, 'datetime': tx_time, 'target_time': tx_time,
+                              'delta_minutes': delta_minutes, 'on_air': False,
                               'end_utc': None, 'minutes_to_end': None,
                               '_sort_key': sk})
 
@@ -1443,10 +1475,10 @@ async function saveScanSettings(){{
                     is_covered = True
         
         url = build_openwebrx_url(tx['freq'], tx['mode'], tx['bandwidth'], tx['decoder'], tx.get('type'))
-        # Escape delle virgolette per JSON
-        desc_escaped = tx['description'].replace('"', '\\"')
+        # Escape per JSON/JS (backslash prima delle virgolette)
+        desc_escaped = tx['description'].replace('\\', '\\\\').replace('"', '\\"')
         tx_key = get_transmission_key(tx)
-        tx_key_escaped = tx_key.replace('"', '\\"')
+        tx_key_escaped = tx_key.replace('\\', '\\\\').replace('"', '\\"')
         on_air_flag = 'true' if tx.get('on_air') else 'false'
         if tx.get('on_air') and tx.get('minutes_to_end') is not None:
             end_ms = int((now + timedelta(minutes=tx['minutes_to_end'])).timestamp() * 1000)
@@ -1495,8 +1527,8 @@ async function saveScanSettings(){{
         if tx_log['heard']:
             cls += " heard"
         
-        # Escape descrizione per HTML
-        desc_html = tx['description'].replace('"', '&quot;').replace("'", '&#39;')
+        # Escape descrizione per HTML (previene XSS)
+        desc_html = html_lib.escape(tx['description'])
         
         # Rating key for quality system (same format as orchestrator: freq|desc)
         rating_key = "{}|{}".format(tx['freq'], tx['description'])
@@ -1552,8 +1584,7 @@ async function saveScanSettings(){{
         
         # Counter con data ultimo ascolto
         if tx_log['hear_count'] > 0 and tx_log['last_heard']:
-            from datetime import datetime as dt
-            last = dt.fromisoformat(tx_log['last_heard'].replace('Z', '+00:00'))
+            last = datetime.fromisoformat(tx_log['last_heard'].replace('Z', '+00:00'))
             last_str = last.strftime('%d/%m %H:%M')
             count_info = f"({tx_log['hear_count']}x) - Ultimo: {last_str} UTC"
         elif tx_log['hear_count'] > 0:
@@ -1561,12 +1592,10 @@ async function saveScanSettings(){{
         else:
             count_info = ""
         
+        # Riusa URL e profile già calcolati nel primo loop
         url = build_openwebrx_url(tx['freq'], tx['mode'], tx['bandwidth'], tx['decoder'], tx.get('type'))
-        
-        # Trova profilo per questa frequenza e costruisci URL
         is_covered, profile_name = check_profile_coverage(tx['freq'])
         if not is_covered:
-            print(f"⚠️  Frequenza {tx['freq']} MHz NON coperta da profili!", file=sys.stderr)
             profile_name = "NESSUNO"
         
         # Escape delle virgolette per JavaScript
@@ -1664,33 +1693,6 @@ async function rateAutoQuality(event, ratingKey, score) {{
     }}
 }}
 
-async function rateTransmission(event, key, rating) {{
-    event.stopPropagation();
-    try {{
-        const response = await fetch('/sdr-log-save', {{
-            method: 'POST',
-            headers: {{'Content-Type': 'application/json'}},
-            body: JSON.stringify({{action: 'rate', key: key, rating: rating}})
-        }});
-        if (response.ok) {{
-            // Aggiorna visivamente le stelle
-            const container = event.target.closest('.tx-rating');
-            const stars = container.querySelectorAll('.star');
-            stars.forEach((star, idx) => {{
-                if (idx < rating) {{
-                    star.textContent = '⭐';
-                }} else {{
-                    star.textContent = '☆';
-                }}
-            }});
-        }} else {{
-            console.error('Errore salvataggio rating:', await response.text());
-        }}
-    }} catch(e) {{
-        console.error('Errore fetch rating:', e);
-    }}
-}}
-
 function updateCountdowns() {{
     const now = Date.now();
     transmissions.forEach((tx, idx) => {{
@@ -1698,13 +1700,17 @@ function updateCountdowns() {{
         if (tx.onAir) {{
             const endDiff = tx.endMs - now;
             const endMin = Math.floor(endDiff / 60000);
-            if (endMin <= 0) {{
+            if (endDiff <= 0) {{
                 countdown = "APPENA TERMINATO";
             }} else if (endMin >= 60) {{
                 const h = Math.floor(endMin / 60), m = endMin % 60;
                 countdown = `IN CORSO \u2014 fine tra ${{h}}h ${{m}}m`;
+            }} else if (endMin > 0) {{
+                const s = Math.floor((endDiff % 60000) / 1000);
+                countdown = `IN CORSO \u2014 fine tra ${{endMin}}m ${{s}}s`;
             }} else {{
-                countdown = `IN CORSO \u2014 fine tra ${{endMin}}min`;
+                const s = Math.floor(endDiff / 1000);
+                countdown = `IN CORSO \u2014 fine tra ${{s}}s`;
             }}
         }} else {{
             const diffMs = tx.targetMs - now;
@@ -1799,11 +1805,16 @@ def generate_json():
     txs = get_next_transmissions(25)
     data = {'generated_at': datetime.now(timezone.utc).isoformat(), 'openwebrx_url': OPENWEBRX_URL, 'next_transmissions': []}
     for tx in txs:
-        data['next_transmissions'].append({
+        entry = {
             'time_utc': tx['time'], 'frequency_mhz': tx['freq'], 'description': tx['description'],
             'mode': tx['mode'], 'bandwidth': tx['bandwidth'], 'decoder': tx['decoder'],
-            'minutes_until': int(tx['delta_minutes']), 'openwebrx_link': build_openwebrx_url(tx['freq'], tx['mode'], tx['bandwidth'], tx['decoder'], tx.get('type'))
-        })
+            'minutes_until': int(tx['delta_minutes']),
+            'on_air': bool(tx.get('on_air')),
+            'end_utc': tx.get('end_utc'),
+            'minutes_to_end': round(tx['minutes_to_end'], 1) if tx.get('minutes_to_end') is not None else None,
+            'openwebrx_link': build_openwebrx_url(tx['freq'], tx['mode'], tx['bandwidth'], tx['decoder'], tx.get('type'))
+        }
+        data['next_transmissions'].append(entry)
     return json.dumps(data, indent=2, ensure_ascii=False)
 
 if __name__ == '__main__':
