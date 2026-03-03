@@ -1068,7 +1068,7 @@ async function saveScanSettings(){{
       }});
     }}
     if(allRecs.length === 0) return '';
-    const show = allRecs.slice(-5).reverse();
+    const show = allRecs.slice(-1);
     const cardId = 'rc'+Math.random().toString(36).substring(2,8);
     let html = '<div class="rec-cards" id="'+cardId+'" onclick="event.stopPropagation()">';
     show.forEach((rec, idx) => {{
