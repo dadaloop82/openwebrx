@@ -67,6 +67,10 @@ NR_DISABLE_THRESHOLD = 5                           # consecutive "nr" -> disable
 MAX_EVENTS_PER_CYCLE = 20                          # max events per scan cycle
 LONG_EVENT_THRESHOLD_MIN = 120                     # events >2h = "long-running"
 
+# -- Recording budget: max 30 min of recording per 2-hour rolling window per station
+REC_BUDGET_SECONDS = 30 * 60                       # 30 minutes max per window
+REC_WINDOW_SECONDS = 2 * 3600                      # 2-hour rolling window
+
 # -- IQ signal detection ---------------------------------------------------
 IQ_FFT_SIZE = 2048                                 # FFT bins for spectral analysis
 IQ_SNR_THRESHOLD = 2.5                             # signal/noise ratio to count as "signal present"
@@ -798,6 +802,9 @@ class AutoModeOrchestrator:
         # Ratings
         self.ratings_db = SignalRatingsDB()
 
+        # Recording budget tracker: station_key -> {"window_start": float, "used_sec": float}
+        self._rec_budgets: dict = {}
+
         # IQ-based signal detector (works without DSP chain / WebSocket clients)
         self._iq_monitor = IQPowerMonitor()
 
@@ -1328,6 +1335,35 @@ class AutoModeOrchestrator:
             (self._event_scan_index + scanned) % max(count, 1)
         )
 
+    # -- recording budget helpers ----------------------------------------
+    def _rec_budget_ok(self, key: str) -> bool:
+        """True if the station still has recording budget left in the current 2-hour window."""
+        now_ts = time.monotonic()
+        rec = self._rec_budgets.get(key)
+        if rec is None:
+            return True
+        if now_ts - rec["window_start"] >= REC_WINDOW_SECONDS:
+            # Window expired — reset
+            del self._rec_budgets[key]
+            return True
+        remaining = REC_BUDGET_SECONDS - rec["used_sec"]
+        if remaining <= 0:
+            logger.info("REC BUDGET exhausted for '%s' (%.0f/%.0f s used in %.0f min window)",
+                        key, rec["used_sec"], REC_BUDGET_SECONDS,
+                        (now_ts - rec["window_start"]) / 60)
+        return remaining > 0
+
+    def _rec_budget_add(self, key: str, seconds: float):
+        """Charge 'seconds' of recording time to the station's budget."""
+        now_ts = time.monotonic()
+        rec = self._rec_budgets.get(key)
+        if rec is None or now_ts - rec["window_start"] >= REC_WINDOW_SECONDS:
+            self._rec_budgets[key] = {"window_start": now_ts, "used_sec": seconds}
+        else:
+            rec["used_sec"] += seconds
+            logger.debug("REC BUDGET '%s': %.0f/%.0f s used",
+                         key, rec["used_sec"], REC_BUDGET_SECONDS)
+
     # -- tune + dwell + rate ---------------------------------------------
     def _tune_one(self, freq_hz, mode, label, dwell_seconds,
                   squelch=0.0, bandwidth=None, event=None):
@@ -1368,12 +1404,24 @@ class AutoModeOrchestrator:
         if self.decoder_manager and self.config.get("enable_decoders"):
             self.decoder_manager.start_session(freq_hz, mode)
 
-        if self.auto_recorder and self.config.get("enable_recording"):
+        # -- check recording budget for this station ----------------------
+        station_key = _station_key(event) if event else None
+        rec_budget_allowed = (
+            self.config.get("enable_recording")
+            and station_key is not None
+            and self._rec_budget_ok(station_key)
+        ) or (self.config.get("enable_recording") and event is None)
+
+        if self.auto_recorder and rec_budget_allowed:
             try:
                 if hasattr(self.auto_recorder, "start_recording"):
                     self.auto_recorder.start_recording()
             except Exception as e:
                 logger.error("Recorder start error: %s", e)
+        elif self.auto_recorder and not rec_budget_allowed:
+            logger.info("SKIP recording '%s' — budget exhausted for this 2h window", label)
+
+        rec_start_ts = time.monotonic()
 
         # -- dwell + measure signal quality ------------------------------
         signal_ratio, samples, rec_filename = self._measure_signal_during_dwell(
@@ -1385,12 +1433,15 @@ class AutoModeOrchestrator:
         # -- stop IQ monitor + decoders / recorder -----------------------
         self._iq_monitor.stop()
 
-        if self.auto_recorder and self.config.get("enable_recording"):
+        if self.auto_recorder and rec_budget_allowed:
             try:
                 if hasattr(self.auto_recorder, "stop_recording"):
                     self.auto_recorder.stop_recording()
             except Exception as e:
                 logger.error("Recorder stop error: %s", e)
+            # Charge actual dwell time to the station's budget
+            if station_key:
+                self._rec_budget_add(station_key, time.monotonic() - rec_start_ts)
 
         if self.decoder_manager:
             self.decoder_manager.stop_session()
