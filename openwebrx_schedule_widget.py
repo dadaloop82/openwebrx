@@ -348,8 +348,33 @@ def get_transmissions():
     
     return expanded
 
+# EIBI target regions receivable from Bolzano, Italy (46.5°N 11.3°E)
+# with a Discone antenna + LNA on HF (3-30 MHz, RTL-SDR direct sampling)
+# Includes all Europe, Near East, North Africa, CIS, Global
+BOLZANO_RECEIVABLE_TARGETS = {
+    'Eu',    # Europe (generic)
+    'CEu',   # Central Europe
+    'WEu',   # Western Europe
+    'SEu',   # Southern Europe
+    'EEu',   # Eastern Europe
+    'NEu',   # Northern Europe
+    'SEE',   # South-Eastern Europe
+    'ME',    # Middle East
+    'NAf',   # North Africa
+    'CIS',   # CIS / ex-USSR
+    'Cau',   # Caucasus
+    'UKR',   # Ukraine
+    'NAO',   # North Atlantic
+    'Global',# Global broadcasts
+    'ITN',   # Italy (specific)
+    'RUS',   # Russia (European part, sometimes receivable)
+}
+
 def get_external_transmissions(now, max_hours=24):
-    """Legge eventi da sdr-eibi-events.json (EIBI + priyom.org calendar)"""
+    """Legge eventi da sdr-eibi-events.json (EIBI + priyom.org calendar).
+    Filtra solo le trasmissioni ricevibili da Bolzano.
+    Deduplicato per (freq, descrizione): una sola entry per stazione.
+    On-air preferita (fine più imminente prima), poi prossima occorrenza."""
     if not os.path.exists(EIBI_EVENTS_JSON):
         return []
     try:
@@ -357,35 +382,88 @@ def get_external_transmissions(now, max_hours=24):
             data = json.load(f)
     except Exception:
         return []
-    result = []
+
+    now_min = now.hour * 60 + now.minute
+    best = {}  # (freq, desc) → best event dict
+
     for ev in data.get("events", []):
+        target = ev.get("target", "")
+        if target and target not in BOLZANO_RECEIVABLE_TARGETS:
+            continue
         t_str = ev.get("time_utc", "")
         try:
             h, m = map(int, t_str.split(':'))
         except ValueError:
             continue
-        tx_time = now.replace(hour=h, minute=m, second=0, microsecond=0)
-        if tx_time < now - timedelta(minutes=5):
-            tx_time += timedelta(days=1)
-        delta_minutes = (tx_time - now).total_seconds() / 60
-        if delta_minutes > max_hours * 60:
-            continue
-        result.append({
-            'time': t_str,
-            'freq': ev.get("frequency_mhz", ""),
-            'description': ev["description"],
-            'mode': ev.get("mode", "USB"),
-            'bandwidth': ev.get("bandwidth", "3"),
-            'decoder': ev.get("decoder", "Audio"),
-            'type': 'EXTERNAL',
-            'days': 'Tutti',
-            'source': ev.get("source", "EIBI"),
-            'target': ev.get("target", ""),
-            'delta_minutes': delta_minutes,
-            'datetime': tx_time,
-            'target_time': tx_time,
-        })
-    return result
+
+        start_min = h * 60 + m
+        end_str = ev.get("end_utc", "")
+        dur_min = ev.get("duration_min")
+        if end_str and ":" in end_str:
+            try:
+                eh, em = map(int, end_str.split(":"))
+                end_min = eh * 60 + em
+            except ValueError:
+                end_min = start_min + (dur_min if dur_min else 30)
+        elif dur_min:
+            end_min = start_min + dur_min
+        else:
+            end_min = start_min + 30
+
+        if end_min > 1440:
+            on_air = now_min >= start_min or now_min < end_min % 1440
+        else:
+            on_air = start_min <= now_min < end_min
+
+        end_abs = end_min % 1440
+        end_disp = f"{end_abs // 60:02d}:{end_abs % 60:02d}"
+
+        if on_air:
+            # minutes_to_end: how many minutes until the broadcast ends
+            if end_min > 1440 and now_min >= start_min:
+                minutes_to_end = (1440 - now_min) + end_abs
+            else:
+                minutes_to_end = end_abs - now_min
+            sort_key = (0, minutes_to_end)  # on-air: soonest-ending first (most urgent)
+            tx_time = now.replace(hour=h, minute=m, second=0, microsecond=0)
+            delta_minutes = (tx_time - now).total_seconds() / 60
+        else:
+            tx_time = now.replace(hour=h, minute=m, second=0, microsecond=0)
+            if tx_time <= now:
+                tx_time += timedelta(days=1)
+            delta_minutes = (tx_time - now).total_seconds() / 60
+            if delta_minutes > max_hours * 60:
+                continue
+            minutes_to_end = None
+            sort_key = (1, delta_minutes)  # upcoming: soonest start first
+
+        freq = ev.get("frequency_mhz", "")
+        desc = ev.get("description", "")
+        station_key = (freq, desc)
+
+        existing = best.get(station_key)
+        if existing is None or sort_key < existing['_sort_key']:
+            best[station_key] = {
+                'time': t_str,
+                'freq': freq,
+                'description': desc,
+                'mode': ev.get("mode", "USB"),
+                'bandwidth': ev.get("bandwidth", "3"),
+                'decoder': ev.get("decoder", "Audio"),
+                'type': 'EXTERNAL',
+                'days': 'Tutti',
+                'source': ev.get("source", "EIBI"),
+                'target': target,
+                'delta_minutes': delta_minutes,
+                'datetime': tx_time,
+                'target_time': tx_time,
+                'on_air': on_air,
+                'end_utc': end_disp,
+                'minutes_to_end': minutes_to_end,
+                '_sort_key': sort_key,
+            }
+
+    return list(best.values())
 
 
 def get_next_transmissions(count=15):
@@ -399,17 +477,23 @@ def get_next_transmissions(count=15):
 
         # Includi eventi iniziati fino a 60 minuti fa (mostra "in corso")
         if delta_minutes >= -60:
-            with_time.append({**tx, 'datetime': tx_time, 'target_time': tx_time, 'delta_minutes': delta_minutes})
+            on_air = delta_minutes < 0
+            sk = (0, 60 + delta_minutes) if on_air else (1, delta_minutes)
+            with_time.append({**tx, 'datetime': tx_time, 'target_time': tx_time,
+                              'delta_minutes': delta_minutes, 'on_air': on_air,
+                              'end_utc': None, 'minutes_to_end': None,
+                              '_sort_key': sk})
 
-    # Fondi con eventi EIBI/priyom, evitando duplicati per (freq, orario)
-    existing_keys = {(t['time'], t['freq']) for t in with_time}
+    # Fondi con eventi EIBI/priyom, deduplicando per (freq, descrizione)
+    existing_station_keys = {(t['freq'], t['description']) for t in with_time}
     for ev in get_external_transmissions(now):
-        key = (ev['time'], ev['freq'])
-        if key not in existing_keys:
+        sk = (ev['freq'], ev['description'])
+        if sk not in existing_station_keys:
             with_time.append(ev)
-            existing_keys.add(key)
+            existing_station_keys.add(sk)
 
-    with_time.sort(key=lambda x: x['delta_minutes'])
+    # Ordina: on-air per urgenza (fine più imminente), poi upcoming per inizio imminente
+    with_time.sort(key=lambda t: t.get('_sort_key', (1, t['delta_minutes'])))
     return with_time[:count]
 
 def generate_html():
@@ -476,6 +560,8 @@ body{{font-family:Arial,sans-serif;background:linear-gradient(135deg,#1e3c72,#2a
 .rec-card-header .rc-score{{color:#FFD700;letter-spacing:1px}}
 .rec-card-header .rc-dl{{color:#64B5F6;text-decoration:none;opacity:0.5;transition:opacity 0.2s;margin-left:auto}}
 .rec-card-header .rc-dl:hover{{opacity:1}}
+.rec-card-header .rc-gemini{{color:#a78bfa;border:1px solid #7c3aed;background:none;font-size:0.85em;padding:1px 6px;border-radius:4px;cursor:pointer;opacity:0.7;transition:all 0.2s}}
+.rec-card-header .rc-gemini:hover{{opacity:1;background:#7c3aed;color:#fff}}
 .rec-viz{{position:relative;cursor:pointer;background:#060a14;overflow:hidden;border-radius:4px;margin:4px 8px}}
 .rec-viz canvas.rv-spec{{display:block;width:100%;height:36px}}
 .rec-viz canvas.rv-wave{{display:block;width:100%;height:28px}}
@@ -567,6 +653,7 @@ async function openFrequency(event, freq, mode, name, profile) {{
 </script>
 </head><body><div class="container"><div class="header"><h1>📡 Prossime Trasmissioni</h1>
 <div class="utc-clock" id="time">{now.strftime('%H:%M:%S')}</div>
+<div id="localtime" style="font-size:0.65em;opacity:0.55;margin-top:2px;font-family:'Courier New',monospace;letter-spacing:1px;">locale --:--</div>
 <div class="header-date">📅 <span id="date">{['Lunedì','Martedì','Mercoledì','Giovedì','Venerdì','Sabato','Domenica'][now.weekday()]} {now.strftime('%d')} {['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'][now.month-1]} {now.strftime('%Y')}</span> &nbsp;|&nbsp; 🔄 Ultimo aggiornamento: {update_time}</div></div>
 <div class="nav-bar">
   <a href="{OPENWEBRX_URL}/recordings" class="rec-link" target="_blank">🔴 Registrazioni</a>
@@ -949,7 +1036,7 @@ async function saveScanSettings(){{
       }});
     }}
     if(allRecs.length === 0) return '';
-    const show = allRecs.slice(-2).reverse();
+    const show = allRecs.slice(-5).reverse();
     const cardId = 'rc'+Math.random().toString(36).substring(2,8);
     let html = '<div class="rec-cards" id="'+cardId+'" onclick="event.stopPropagation()">';
     show.forEach((rec, idx) => {{
@@ -975,6 +1062,7 @@ async function saveScanSettings(){{
         html += '<small>(📣'+nPct+'%)</small></span>';
       }}
       html += '<a class="rc-dl" href="'+audioUrl+'" download title="Download">⬇</a>';
+      html += '<button class="rc-gemini" data-file="'+safeFile+'" title="Chiedi a Gemini AI" onclick="event.stopPropagation();openRecGemini(this.getAttribute(&apos;data-file&apos;))">🤖</button>';
       html += '</div>';
       /* spectrogram + waveform viz — full width stacked rows */
       html += '<div class="rec-viz">';
@@ -1089,6 +1177,21 @@ async function saveScanSettings(){{
     return _recVizAudioCtx;
   }}
 
+  /* --- Viz cache (localStorage) to avoid re-fetching MP3s on refresh --- */
+  const VIZ_CACHE_PREFIX = 'rviz_';
+  const VIZ_CACHE_MAX = 50;
+  function _vizCacheKey(url){{ return VIZ_CACHE_PREFIX + url.split('/').pop(); }}
+  function _vizCacheGet(url){{
+    try{{ const d = localStorage.getItem(_vizCacheKey(url)); return d ? JSON.parse(d) : null; }}catch(e){{ return null; }}
+  }}
+  function _vizCachePut(url, specData, waveData){{
+    try{{
+      const keys = []; for(let i=0;i<localStorage.length;i++){{ const k=localStorage.key(i); if(k&&k.startsWith(VIZ_CACHE_PREFIX)) keys.push(k); }}
+      while(keys.length >= VIZ_CACHE_MAX){{ localStorage.removeItem(keys.shift()); }}
+      localStorage.setItem(_vizCacheKey(url), JSON.stringify({{s:specData,w:waveData,t:Date.now()}}));
+    }}catch(e){{/* quota exceeded, ignore */}}
+  }}
+
   function initRecViz(containerId){{
     const wrap = document.getElementById(containerId);
     if(!wrap) return;
@@ -1105,9 +1208,23 @@ async function saveScanSettings(){{
       function loadViz(){{
         if(vizDone) return;
         vizDone = true;
-        if(loading) loading.textContent='decodifica audio...';
         const src = audio.src || audio.querySelector('source')?.src;
         if(!src){{ if(loading) loading.textContent='⚠ no src'; return; }}
+        /* Try cache first */
+        const cached = _vizCacheGet(src);
+        if(cached && cached.s && cached.w){{
+          const specImg = new Image(); specImg.onload = function(){{
+            const W=specC.clientWidth, H=specC.clientHeight; specC.width=W*2; specC.height=H*2;
+            const sCtx=specC.getContext('2d'); sCtx.scale(2,2); sCtx.drawImage(specImg,0,0,W,H);
+          }}; specImg.src = cached.s;
+          const waveImg = new Image(); waveImg.onload = function(){{
+            const W=waveC.clientWidth, H=waveC.clientHeight; waveC.width=W*2; waveC.height=H*2;
+            const wCtx=waveC.getContext('2d'); wCtx.scale(2,2); wCtx.drawImage(waveImg,0,0,W,H);
+          }}; waveImg.src = cached.w;
+          if(loading) loading.style.display='none';
+          return;
+        }}
+        if(loading) loading.textContent='decodifica audio...';
         const ctx = getRecAudioCtx();
         fetch(src).then(function(r){{
           if(!r.ok) throw new Error('HTTP '+r.status);
@@ -1119,6 +1236,8 @@ async function saveScanSettings(){{
           drawRecSpectrogram(specC, pcm, decoded.sampleRate);
           drawRecWaveform(waveC, pcm);
           if(loading) loading.style.display='none';
+          /* Cache rendered canvas images */
+          try{{ _vizCachePut(src, specC.toDataURL('image/png',0.6), waveC.toDataURL('image/png',0.6)); }}catch(ce){{}}
         }}).catch(function(e){{
           console.error('rec-viz error:', e);
           if(loading) loading.textContent='⚠ '+e.message;
@@ -1144,6 +1263,41 @@ async function saveScanSettings(){{
         }}
       }});
     }});
+  }}
+
+  function renderQualityBadgeOnly(r, key){{
+    /* Same as renderQualityBadge but WITHOUT recording cards — for incremental updates */
+    if(!r){{
+      return '<div class="aq-row">'+renderBigStars(key, 0) + '<span class="aq-info" title="Clicca le stelle per votare">⏳ In attesa</span></div>';
+    }}
+    const total = r.total_ratings || 0;
+    const nr = r.consecutive_nr || 0;
+    const avg = r.avg_score;
+    const enabled = r.enabled !== false;
+    const scored = r.scored_count || 0;
+    const nrTotal = r.nr_count || 0;
+    const detailStr = total > 0 ? ' ('+scored+'/'+total+' con segnale)' : '';
+    if(!enabled){{
+      return '<div class="aq-row">'+renderBigStars(key, 0) + '<span class="aq-info aq-disabled" title="Disabilitato dopo '+nr+' NR consecutivi ('+nrTotal+' NR su '+total+')">⛔ Disabilitato'+detailStr+'</span></div>';
+    }}
+    const displayScore = avg !== null && avg !== undefined ? Math.round(avg) : 0;
+    const starsHtml = renderBigStars(key, displayScore);
+    if(total === 0){{
+      return '<div class="aq-row">'+starsHtml + '<span class="aq-info" title="Clicca le stelle per votare">⏳ In attesa</span></div>';
+    }}
+    if(avg === null || avg === undefined || nr >= 3){{
+      return '<div class="aq-row">'+starsHtml + '<span class="aq-info aq-nr" title="Segnale assente x'+nr+' consecutivi ('+nrTotal+' NR su '+total+' scansioni)">📡 ×'+nr+detailStr+'</span></div>';
+    }}
+    const cls = avg <= 1.5 ? 'aq-low' : (avg <= 3.0 ? 'aq-mid' : 'aq-high');
+    return '<div class="aq-row">'+starsHtml + '<span class="aq-info '+cls+'" title="Media auto: '+avg.toFixed(1)+'/5 — '+scored+' con segnale, '+nrTotal+' NR su '+total+' scansioni">'+avg.toFixed(1)+'/5'+detailStr+'</span></div>';
+  }}
+
+  function _recFingerprint(entry){{
+    /* Build a fingerprint of recording filenames for change detection */
+    const names = [];
+    if(entry && entry.recordings) entry.recordings.forEach(r => names.push(r.filename||''));
+    if(entry && entry.last_positive) entry.last_positive.forEach(p => {{ if(p.recording) names.push(p.recording); }});
+    return names.sort().join('|');
   }}
 
   function renderQualityBadge(r, key){{
@@ -1202,9 +1356,9 @@ async function saveScanSettings(){{
         agg.avg_score = agg._scores.reduce((a,b)=>a+b, 0) / agg._scores.length;
       }}
       agg.consecutive_nr = Math.min(...agg._nr_counts.length ? agg._nr_counts : [0]);
-      if(agg.last_positive && agg.last_positive.length > 5){{
+      if(agg.last_positive && agg.last_positive.length > 10){{
         agg.last_positive.sort((a,b) => (a.ts > b.ts ? 1 : -1));
-        agg.last_positive = agg.last_positive.slice(-2);
+        agg.last_positive = agg.last_positive.slice(-5);
       }}
       delete agg._scores;
       delete agg._nr_counts;
@@ -1235,7 +1389,31 @@ async function saveScanSettings(){{
             entry = byDesc[desc];
           }}
         }}
-        container.innerHTML = renderQualityBadge(entry, key);
+        /* --- Incremental update: avoid destroying initialized spectrograms --- */
+        const existingCards = container.querySelector('.rec-cards');
+        const hasViz = existingCards && existingCards.querySelector('canvas[width]');
+        if(hasViz){{
+          /* Only update the badge row, preserve recording cards + viz */
+          const oldRow = container.querySelector('.aq-row');
+          const newBadgeHtml = renderQualityBadgeOnly(entry, key);
+          if(oldRow){{
+            const tmp = document.createElement('div');
+            tmp.innerHTML = newBadgeHtml;
+            const newRow = tmp.firstChild;
+            if(newRow) oldRow.replaceWith(newRow);
+          }}
+          /* Check if recordings changed — if so, rebuild cards only */
+          const oldFp = container.getAttribute('data-rec-fp') || '';
+          const newFp = _recFingerprint(entry);
+          if(oldFp !== newFp){{
+            container.innerHTML = renderQualityBadge(entry, key);
+            container.setAttribute('data-rec-fp', newFp);
+          }}
+        }} else {{
+          /* First time or no viz yet — full render */
+          container.innerHTML = renderQualityBadge(entry, key);
+          container.setAttribute('data-rec-fp', _recFingerprint(entry));
+        }}
         // Toggle disabled class on card
         if(entry && entry.enabled === false){{ card.classList.add('disabled'); }}
         else{{ card.classList.remove('disabled'); }}
@@ -1269,7 +1447,12 @@ async function saveScanSettings(){{
         desc_escaped = tx['description'].replace('"', '\\"')
         tx_key = get_transmission_key(tx)
         tx_key_escaped = tx_key.replace('"', '\\"')
-        tx_data_js.append(f'{{"time":"{tx["time"]}","targetMs":{int(tx["target_time"].timestamp()*1000)},"freq":"{tx["freq"]}","desc":"{desc_escaped}","mode":"{tx["mode"]}","bw":"{tx["bandwidth"]}","decoder":"{tx["decoder"]}","url":"{url}","key":"{tx_key_escaped}"}}')
+        on_air_flag = 'true' if tx.get('on_air') else 'false'
+        if tx.get('on_air') and tx.get('minutes_to_end') is not None:
+            end_ms = int((now + timedelta(minutes=tx['minutes_to_end'])).timestamp() * 1000)
+        else:
+            end_ms = int(tx['target_time'].timestamp() * 1000)
+        tx_data_js.append(f'{{"time":"{tx["time"]}","targetMs":{int(tx["target_time"].timestamp()*1000)},"endMs":{end_ms},"onAir":{on_air_flag},"freq":"{tx["freq"]}","desc":"{desc_escaped}","mode":"{tx["mode"]}","bw":"{tx["bandwidth"]}","decoder":"{tx["decoder"]}","url":"{url}","key":"{tx_key_escaped}"}}')
     
     # Mostra warning se ci sono frequenze non coperte
     if uncovered_freqs:
@@ -1284,12 +1467,22 @@ async function saveScanSettings(){{
     
     for i, tx in enumerate(txs):
         m = tx['delta_minutes']
-        if m < 0:
+        if tx.get('on_air') and tx.get('minutes_to_end') is not None:
+            mte = tx['minutes_to_end']
+            if mte >= 60:
+                countdown = f"IN CORSO \u2014 fine tra {int(mte//60)}h {int(mte%60)}m"
+            else:
+                countdown = f"IN CORSO \u2014 fine tra {int(mte)}min"
+        elif m < 0:
             countdown = f"IN CORSO, iniziato alle {tx['time']}"
         elif m >= 60:
             countdown = f"TRA {int(m//60)}h {int(m%60)}m"
         else:
             countdown = f"TRA {int(m)}min"
+        if tx.get('on_air') and tx.get('end_utc'):
+            time_display = f"{tx['time']} \u2192 {tx['end_utc']} UTC"
+        else:
+            time_display = f"{tx['time']} UTC"
         
         # Chiave trasmissione (prima di tutto)
         tx_key = get_transmission_key(tx)
@@ -1383,7 +1576,7 @@ async function saveScanSettings(){{
         # Usa l'URL corretto con offset e secondary_mod già calcolati
         html += f'''<div class="transmission {cls}" data-key="{tx_key_html}" data-rating-key="{rating_key_html}" data-profile="{profile_name}" data-freq="{tx['freq']}" onclick="window.open('{url}', '_blank'); event.stopPropagation();">
 <div class="tx-header">
-<div class="tx-time">{tx['time']} UTC</div>
+<div class="tx-time">{time_display}</div>
 <div class="tx-countdown" data-idx="{i}">{countdown}</div>
 </div>
 <div class="tx-freq">📡 {tx['freq']} MHz</div>
@@ -1501,37 +1694,58 @@ async function rateTransmission(event, key, rating) {{
 function updateCountdowns() {{
     const now = Date.now();
     transmissions.forEach((tx, idx) => {{
-        const diffMs = tx.targetMs - now;
-        const diffMin = Math.floor(diffMs / 60000);
-        const diffSec = Math.floor((diffMs % 60000) / 1000);
-        
         let countdown;
-        if (diffMin < -60) {{
-            countdown = "TERMINATO";
-        }} else if (diffMin < 0) {{
-            countdown = `IN CORSO, iniziato alle ${{tx.time}}`;
-        }} else if (diffMin >= 60) {{
-            const h = Math.floor(diffMin / 60);
-            const m = diffMin % 60;
-            countdown = `TRA ${{h}}h ${{m}}m`;
-        }} else if (diffMin > 0) {{
-            countdown = `TRA ${{diffMin}}min ${{diffSec}}s`;
+        if (tx.onAir) {{
+            const endDiff = tx.endMs - now;
+            const endMin = Math.floor(endDiff / 60000);
+            if (endMin <= 0) {{
+                countdown = "APPENA TERMINATO";
+            }} else if (endMin >= 60) {{
+                const h = Math.floor(endMin / 60), m = endMin % 60;
+                countdown = `IN CORSO \u2014 fine tra ${{h}}h ${{m}}m`;
+            }} else {{
+                countdown = `IN CORSO \u2014 fine tra ${{endMin}}min`;
+            }}
         }} else {{
-            countdown = `TRA ${{diffSec}}s`;
+            const diffMs = tx.targetMs - now;
+            const diffMin = Math.floor(diffMs / 60000);
+            const diffSec = Math.floor((diffMs % 60000) / 1000);
+            if (diffMin < -60) {{
+                countdown = "TERMINATO";
+            }} else if (diffMin < 0) {{
+                countdown = `IN CORSO, iniziato alle ${{tx.time}}`;
+            }} else if (diffMin >= 60) {{
+                const h = Math.floor(diffMin / 60);
+                const m = diffMin % 60;
+                countdown = `TRA ${{h}}h ${{m}}m`;
+            }} else if (diffMin > 0) {{
+                countdown = `TRA ${{diffMin}}min ${{diffSec}}s`;
+            }} else {{
+                countdown = `TRA ${{diffSec}}s`;
+            }}
         }}
-        
         const el = document.querySelector(`[data-idx="${{idx}}"]`);
         if (el) el.textContent = countdown;
     }});
 }}
 
-// Aggiorna orologio, data e countdown ogni secondo
+// Aggiorna orologio, data, orario locale e countdown ogni secondo
 setInterval(() => {{
     const now = new Date();
     document.getElementById("time").textContent = now.toISOString().substr(11,8);
     const days = ['Domenica','Lunedì','Martedì','Mercoledì','Giovedì','Venerdì','Sabato'];
     const months = ['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
     document.getElementById("date").textContent = days[now.getUTCDay()] + ' ' + now.getUTCDate() + ' ' + months[now.getUTCMonth()] + ' ' + now.getUTCFullYear();
+    const lt = document.getElementById("localtime");
+    if (lt) {{
+        const lh = String(now.getHours()).padStart(2,'0');
+        const lm = String(now.getMinutes()).padStart(2,'0');
+        const offset = -now.getTimezoneOffset();
+        const sign = offset >= 0 ? '+' : '-';
+        const oh = String(Math.floor(Math.abs(offset)/60)).padStart(2,'0');
+        const om = String(Math.abs(offset)%60).padStart(2,'0');
+        lt.textContent = `${{lh}}:${{lm}} locale (UTC${{sign}}${{oh}}:${{om}})`;
+    }}
     updateCountdowns();
 }}, 1000);
 
@@ -1539,6 +1753,45 @@ setInterval(() => {{
 updateCountdowns();
 </script>
 <div class="footer">SDR Schedule Widget v2.1 &nbsp;|&nbsp; OpenWebRX+ v1.2.106 &nbsp;|&nbsp; Generato: {update_time} &nbsp;|&nbsp; <a href="{OPENWEBRX_URL}/recordings" target="_blank" style="color:#FF5722;text-decoration:none;font-weight:bold">🔴 Registrazioni</a></div>
+<!-- Gemini AI Modal for recordings -->
+<div id="recGeminiOverlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.7);z-index:9999;justify-content:center;align-items:center;">
+  <div style="background:#1a1a2e;border:1px solid #7c3aed;border-radius:10px;width:92%;max-width:560px;max-height:80vh;overflow-y:auto;padding:18px;color:#e0e0e0;box-shadow:0 0 30px rgba(124,58,237,.3);">
+    <h3 style="color:#a78bfa;margin:0 0 10px;font-size:1.1rem;">🤖 Gemini AI Analysis</h3>
+    <div id="rgFile" style="color:#00d4ff;font-size:.82rem;margin-bottom:8px;"></div>
+    <div id="rgResult" style="background:#0a0e1a;border:1px solid #333;border-radius:6px;padding:12px;margin:10px 0;font-size:.82rem;line-height:1.5;white-space:pre-wrap;word-wrap:break-word;min-height:60px;color:#888;font-style:italic;">Premi "Analizza" per chiedere a Gemini...</div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;">
+      <button onclick="document.getElementById('recGeminiOverlay').style.display='none'" style="padding:6px 16px;border-radius:6px;border:none;cursor:pointer;font-size:.82rem;font-weight:600;background:#333;color:#ccc;">Chiudi</button>
+      <button id="rgAskBtn" onclick="doRecGeminiAnalyze()" style="padding:6px 16px;border-radius:6px;border:none;cursor:pointer;font-size:.82rem;font-weight:600;background:#7c3aed;color:#fff;">🤖 Analizza</button>
+    </div>
+  </div>
+</div>
+<script>
+var _rgFile = null;
+function openRecGemini(filename) {{
+  _rgFile = filename;
+  document.getElementById('rgFile').textContent = '📁 ' + filename;
+  document.getElementById('rgResult').innerHTML = '<span style="color:#888;font-style:italic">Premi "Analizza" per chiedere a Gemini...</span>';
+  document.getElementById('recGeminiOverlay').style.display = 'flex';
+}}
+function doRecGeminiAnalyze() {{
+  if(!_rgFile) return;
+  var btn = document.getElementById('rgAskBtn');
+  btn.disabled = true; btn.textContent = '⏳ Analisi...';
+  document.getElementById('rgResult').innerHTML = '<span style="color:#888;font-style:italic">Invio audio a Gemini AI... potrebbe richiedere alcuni secondi.</span>';
+  fetch('{OPENWEBRX_URL}/api/gemini/analyze-recording', {{
+    method:'POST', headers:{{'Content-Type':'application/json'}},
+    body:JSON.stringify({{filename:_rgFile}})
+  }}).then(function(r){{ return r.json(); }}).then(function(data){{
+    if(data.text) document.getElementById('rgResult').textContent = data.text;
+    else if(data.error) document.getElementById('rgResult').innerHTML = '<span style="color:#f44">Errore: '+data.error+'</span>';
+  }}).catch(function(e){{
+    document.getElementById('rgResult').innerHTML = '<span style="color:#f44">Errore: '+e.message+'</span>';
+  }}).finally(function(){{
+    btn.disabled = false; btn.textContent = '🤖 Analizza';
+  }});
+}}
+document.getElementById('recGeminiOverlay').addEventListener('click', function(e){{ if(e.target===this) this.style.display='none'; }});
+</script>
 </div></body></html>'''
     return html
 
