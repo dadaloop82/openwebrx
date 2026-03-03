@@ -591,11 +591,12 @@ def analyze_recording_quality(mp3_path: str) -> Optional[Dict[str, Any]]:
         logger.debug("Audio quality analysis error for %s: %s", mp3_path, e)
         return None
 
-    # -- Composite noise score (0=clean, 1=pure noise) -- v3 --
+    # -- Composite noise score (0=clean, 1=pure noise) -- v4 --
     # Root cause analysis from real Bolzano HF data:
-    #   ALL "noise" recordings have mod_index 0.06-0.09 (barely modulated carriers).
+    #   ALL "noise" recordings have mod_index 0.04-0.13 (barely modulated carriers).
     #   A real voice broadcast has mod_index > 0.20.
     #   Therefore mod_index MUST be the dominant metric (50% weight).
+    #   v4: pure noise (noise_level >= 0.45) now correctly gets 0 stars.
     #
     # Normalization:
     #   mod:   0.04 (silence/carrier) → noise=1.0,   0.22+ (voice) → noise 0.0
@@ -620,19 +621,21 @@ def analyze_recording_quality(mp3_path: str) -> Optional[Dict[str, Any]]:
     )
     noise_level = min(1.0, max(0.0, noise_level))
 
-    # Map to 1-5 stars (v3 – strict)
-    # Verified on real data: HF noise/carriers score 0.55-0.70 → 1 star
-    # Good voice broadcast (mod≥0.25) would score < 0.15 → 4-5 stars
-    if noise_level >= 0.55:
-        audio_score = 1
-    elif noise_level >= 0.38:
-        audio_score = 2
-    elif noise_level >= 0.22:
-        audio_score = 3
-    elif noise_level >= 0.10:
-        audio_score = 4
+    # Map to 0-5 stars (v4 – very strict, 0 stars for pure noise)
+    # Verified on real Bolzano data: HF noise/carriers score 0.49-0.65 → 0 stars
+    # mod_index < 0.15 with noise_level > 0.45 = definitely just noise
+    if noise_level >= 0.45:
+        audio_score = 0    # pure noise / interference / empty carrier
+    elif noise_level >= 0.35:
+        audio_score = 1    # mostly noise, faint traces of signal
+    elif noise_level >= 0.25:
+        audio_score = 2    # noisy but some content audible
+    elif noise_level >= 0.15:
+        audio_score = 3    # fair, audible with background noise
+    elif noise_level >= 0.08:
+        audio_score = 4    # good quality
     else:
-        audio_score = 5
+        audio_score = 5    # excellent, clean signal
 
     return {
         "audio_score": audio_score,
@@ -1177,14 +1180,21 @@ class AutoModeOrchestrator:
             iq_score = _signal_ratio_to_stars(signal_ratio)
             if audio_quality:
                 audio_score = audio_quality["audio_score"]
-                # Blend: audio analysis has final say since it measures actual content
-                # If audio is much worse than IQ score, reduce (noise in recording)
-                # If audio is better, trust audio slightly
-                score = round(iq_score * 0.3 + audio_score * 0.7)
-                score = max(1, min(5, score))
-                stars_str = "★" * score + "☆" * (5 - score) + \
-                    " (IQ:{} Audio:{} noise:{:.0%})".format(
-                        iq_score, audio_score, audio_quality["noise_level"])
+                # v4: When audio analysis detects pure noise (0-1 stars),
+                # trust it completely — IQ picks up carriers/interference
+                # that sound like noise on the speaker.
+                if audio_score <= 1:
+                    score = audio_score
+                    stars_str = "★" * score + "☆" * (5 - score) + \
+                        " (audio:{} noise:{:.0%})".format(
+                            audio_score, audio_quality["noise_level"])
+                else:
+                    # Blend: audio dominant for audible content
+                    score = round(iq_score * 0.3 + audio_score * 0.7)
+                    score = max(0, min(5, score))
+                    stars_str = "★" * score + "☆" * (5 - score) + \
+                        " (IQ:{} Audio:{} noise:{:.0%})".format(
+                            iq_score, audio_score, audio_quality["noise_level"])
             else:
                 score = iq_score
                 stars_str = "★" * score + "☆" * (5 - score)

@@ -611,6 +611,7 @@ body{{font-family:Arial,sans-serif;background:linear-gradient(135deg,#1e3c72,#2a
 .rc-aq-good{{background:rgba(76,175,80,0.25);color:#A5D6A7}}
 .rc-aq-fair{{background:rgba(255,193,7,0.25);color:#FFF176}}
 .rc-aq-poor{{background:rgba(255,82,82,0.25);color:#FF8A80}}
+.rc-aq-noise{{background:rgba(120,120,120,0.3);color:#999;text-decoration:line-through}}
 .tx-heard{{color:#81C784;cursor:pointer;padding:3px 10px;border-radius:15px;background:rgba(255,255,255,0.1);transition:all 0.2s;user-select:none}}
 .tx-heard:hover{{background:rgba(255,255,255,0.2);transform:scale(1.05)}}
 .tx-heard.not-heard{{color:#BDBDBD;opacity:0.8}}
@@ -1084,7 +1085,7 @@ async function saveScanSettings(){{
     let html = '<div class="rec-cards" id="'+cardId+'" onclick="event.stopPropagation()">';
     show.forEach((rec, idx) => {{
       const safeFile = rec.filename.replace(/&/g,'&amp;').replace(/'/g,'&#39;').replace(/"/g,'&quot;');
-      const starsHtml = rec.score > 0 ? ('★'.repeat(rec.score)+'☆'.repeat(5-rec.score)) : '';
+      const starsHtml = (rec.score >= 0) ? ('★'.repeat(rec.score)+'☆'.repeat(5-rec.score)) : '';
       const audioUrl = owrxHost+'/files/'+encodeURIComponent(rec.filename);
       html += '<div class="rec-card" data-idx="'+idx+'">';
       /* header row */
@@ -1095,11 +1096,11 @@ async function saveScanSettings(){{
       if(rec.size > 0) html += '<span class="rc-size">'+fmtSize(rec.size)+'</span>';
       if(starsHtml) html += '<span class="rc-score" title="'+(rec.src||'')+'">'+starsHtml+'</span>';
       /* Audio quality badge from offline DSP analysis */
-      if(rec.aq && rec.aq.audio_score){{
+      if(rec.aq && rec.aq.audio_score != null){{
         const aqs = rec.aq.audio_score;
         const nl = rec.aq.noise_level || 0;
         const nPct = Math.round(nl*100);
-        const aqCls = aqs >= 4 ? 'rc-aq-good' : (aqs >= 3 ? 'rc-aq-fair' : 'rc-aq-poor');
+        const aqCls = aqs >= 4 ? 'rc-aq-good' : (aqs >= 3 ? 'rc-aq-fair' : (aqs >= 1 ? 'rc-aq-poor' : 'rc-aq-noise'));
         html += '<span class="rc-aq '+aqCls+'" title="Qualit\u00e0 audio: '+aqs+'/5 &#10;Rumore: '+nPct+'%">';
         html += '🔊'+aqs+'/5 ';
         html += '<small>(📣'+nPct+'%)</small></span>';
