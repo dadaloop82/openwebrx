@@ -39,6 +39,15 @@ body{margin-bottom:.5rem;background:#1a1a2e;color:#e0e0e0}
 .group-count{color:#666;font-size:.72rem}
 .group-body{display:flex;flex-direction:column;gap:5px;padding:5px 0 5px 8px}
 
+/* Load more button */
+.btn-load-more{
+  background:#0f3460;color:#00d4ff;border:1px dashed #0af;
+  padding:8px 16px;border-radius:6px;cursor:pointer;
+  font-size:.82rem;font-weight:600;margin:4px 0;width:100%;
+  transition:all .2s;
+}
+.btn-load-more:hover{background:#1a4a80;border-style:solid}
+
 /* Card */
 .file-card{
     background:#16213e;border:1px solid #0f3460;border-radius:6px;

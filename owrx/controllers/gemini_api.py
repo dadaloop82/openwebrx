@@ -525,21 +525,23 @@ class GeminiRecordingController(Controller):
 
             audio_dur = (len(audio_wav) - 44) / (16000 * 2) if len(audio_wav) > 44 else 0
 
-            prompt = f"""Sei un esperto analista di segnali radio e telecomunicazioni. Ti invio un campione audio registrato da un ricevitore SDR (Software Defined Radio).
+            prompt = f"""Sei un esperto analista di segnali radio e telecomunicazioni. Ti invio un campione audio registrato da un ricevitore SDR (Software Defined Radio) con antenna Discone e LNA.
 
 **File:** {filename}
 **Frequenza:** {freq_str if freq_str else 'sconosciuta'}
 **Durata audio:** {audio_dur:.1f} secondi
 **Data/Ora UTC:** {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}
-**Posizione ricevitore:** Bolzano, Italia (Regione ITU 1)
+**Posizione ricevitore:** Bolzano, Alto Adige, Italia (46.5°N 11.3°E, Regione ITU 1)
+**Antenna:** Discone artigianale + LNA (Nooelec NESDR SMArt v5, direct sampling HF)
 
 Ascolta attentamente l'audio allegato e rispondi in italiano, in modo CONCISO (max 15-20 righe):
 
 1. **Cosa senti?** Descrivi il contenuto audio (voce, musica, dati digitali, rumore, portante, interferenze, etc.)
-2. **Lingua:** Se c'è parlato, in quale lingua?
-3. **Identificazione:** Quale stazione o servizio potrebbe essere? Basati sulla frequenza, l'orario e la posizione del ricevitore.
-4. **Qualità:** Come giudichi la qualità della ricezione? (ottima/buona/discreta/scarsa/pessima)
-5. **Note:** Eventuali informazioni utili per l'ascoltatore.
+2. **Lingua:** Se c'è parlato, in quale lingua parlano? Traduci brevemente cosa dicono se possibile.
+3. **Identificazione stazione:** Quale stazione radio o servizio è secondo te? Basati sulla frequenza, l'orario UTC, la posizione del ricevitore (Bolzano) e il contenuto audio. Indica la sigla della stazione se possibile.
+4. **Tipo di trasmissione:** Broadcast internazionale, utility, radioamatore, militare, aeronautica, marittimo, numeri, time signal, etc.?
+5. **Qualità ricezione:** Come giudichi la qualità? (ottima/buona/discreta/scarsa/pessima/solo rumore)
+6. **Note:** Eventuali informazioni utili per l'ascoltatore.
 """
             custom_q = data.get('question', '')
             if custom_q:

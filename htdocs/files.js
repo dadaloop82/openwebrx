@@ -114,6 +114,12 @@ $(function(){
         }
     }
 
+    /* ---- Viz cache (localStorage) ---- */
+    var VIZ_PFX='fviz_',VIZ_MAX=80;
+    function _cKey(u){return VIZ_PFX+u.split('/').pop()}
+    function _cGet(u){try{var d=localStorage.getItem(_cKey(u));return d?JSON.parse(d):null}catch(e){return null}}
+    function _cPut(u,s,w){try{var ks=[];for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);if(k&&k.indexOf(VIZ_PFX)===0)ks.push(k)}while(ks.length>=VIZ_MAX)localStorage.removeItem(ks.shift());localStorage.setItem(_cKey(u),JSON.stringify({s:s,w:w,t:Date.now()}))}catch(e){}}
+
     /* ---- Init each card ---- */
     $('.file-card').each(function(){
         var card=$(this),audio=card.find('audio')[0];
@@ -133,17 +139,32 @@ $(function(){
             sCtx.fillStyle='#000';sCtx.fillRect(0,0,specCanvas.width,specCanvas.height);
         }
 
-        fetch(audio.src).then(function(r){return r.arrayBuffer()}).then(function(buf){
-            var actx=new AudioCtx();
-            return actx.decodeAudioData(buf).then(function(d){actx.close();return d});
-        }).then(function(decoded){
-            var pcm=decoded.getChannelData(0);
-            drawWaveform(waveCanvas,pcm);
-            if(specCanvas)drawSpectrogram(specCanvas,pcm,decoded.sampleRate);
-        }).catch(function(){
-            wCtx.fillStyle='#1a1a2e';wCtx.fillRect(0,0,waveCanvas.width,waveCanvas.height);
-            wCtx.fillStyle='#555';wCtx.font='9px monospace';wCtx.fillText('n/a',4,12);
-        });
+        /* Try cache first */
+        var cached=_cGet(audio.src);
+        if(cached&&cached.s&&cached.w){
+            var sImg=new Image();sImg.onload=function(){
+                specCanvas.width=specCanvas.offsetWidth*2;specCanvas.height=specCanvas.offsetHeight*2;
+                var ctx2=specCanvas.getContext('2d');ctx2.scale(2,2);ctx2.drawImage(sImg,0,0,specCanvas.offsetWidth,specCanvas.offsetHeight);
+            };sImg.src=cached.s;
+            var wImg=new Image();wImg.onload=function(){
+                waveCanvas.width=waveCanvas.offsetWidth*2;waveCanvas.height=waveCanvas.offsetHeight*2;
+                var ctx2=waveCanvas.getContext('2d');ctx2.scale(2,2);ctx2.drawImage(wImg,0,0,waveCanvas.offsetWidth,waveCanvas.offsetHeight);
+            };wImg.src=cached.w;
+        } else {
+            var _src=audio.src;
+            fetch(audio.src).then(function(r){return r.arrayBuffer()}).then(function(buf){
+                var actx=new AudioCtx();
+                return actx.decodeAudioData(buf).then(function(d){actx.close();return d});
+            }).then(function(decoded){
+                var pcm=decoded.getChannelData(0);
+                drawWaveform(waveCanvas,pcm);
+                if(specCanvas)drawSpectrogram(specCanvas,pcm,decoded.sampleRate);
+                try{_cPut(_src,specCanvas.toDataURL('image/png',0.6),waveCanvas.toDataURL('image/png',0.6))}catch(e){}
+            }).catch(function(){
+                wCtx.fillStyle='#1a1a2e';wCtx.fillRect(0,0,waveCanvas.width,waveCanvas.height);
+                wCtx.fillStyle='#555';wCtx.font='9px monospace';wCtx.fillText('n/a',4,12);
+            });
+        }
 
         // Playback overlay
         var overlay=card.find('.waveform-overlay')[0];

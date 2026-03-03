@@ -580,34 +580,45 @@ def analyze_recording_quality(mp3_path: str) -> Optional[Dict[str, Any]]:
         logger.debug("Audio quality analysis error for %s: %s", mp3_path, e)
         return None
 
-    # -- Composite noise score (0=clean, 1=pure noise) ---
-    # Weights calibrated on real HF recordings (v2 – stricter):
-    #   - entropy is the strongest discriminator (0.36 = clean, 0.87 = noise)
-    #   - ac_peak helps but is fooled by carrier/AGC periodic patterns
-    #   - crest, modulation, flatness are supporting indicators
-    ac_noise = 1.0 - min(1.0, max(0.0, ac_peak))           # 0=periodic, 1=random
-    ent_noise = min(1.0, max(0.0, (entropy - 0.3) / 0.6))  # map 0.3-0.9 → 0-1
-    flat_noise = min(1.0, max(0.0, flatness / 0.02))        # map 0-0.02 → 0-1 (tighter)
-    mod_noise = 1.0 - min(1.0, max(0.0, mod_index / 0.20))  # high mod = less noise
-    crest_noise = min(1.0, max(0.0, (crest - 3.0) / 2.0))   # >3.0 starts getting noisy
+    # -- Composite noise score (0=clean, 1=pure noise) -- v3 --
+    # Root cause analysis from real Bolzano HF data:
+    #   ALL "noise" recordings have mod_index 0.06-0.09 (barely modulated carriers).
+    #   A real voice broadcast has mod_index > 0.20.
+    #   Therefore mod_index MUST be the dominant metric (50% weight).
+    #
+    # Normalization:
+    #   mod:   0.04 (silence/carrier) → noise=1.0,   0.22+ (voice) → noise 0.0
+    #   ent:   0.30 (clean)           → noise=0.0,   0.90 (white)  → noise=1.0
+    #   ac:    1.0  (very periodic)   → noise=0.0,   0.0  (random) → noise=1.0
+    #   flat:  0.0  (tonal)           → noise=0.0,   0.02+(white)  → noise=1.0
+    #   crest: 3.0  (normal audio)    → noise=0.0,   5.5+ (noisy)  → noise=1.0
+
+    ac_noise   = 1.0 - min(1.0, max(0.0, ac_peak))
+    ent_noise  = min(1.0, max(0.0, (entropy - 0.3) / 0.6))
+    flat_noise = min(1.0, max(0.0, flatness / 0.02))
+    # Key: mod_index < 0.04 is pure carrier/silence, > 0.22 is well-modulated voice
+    mod_noise  = 1.0 - min(1.0, max(0.0, (mod_index - 0.04) / 0.18))
+    crest_noise = min(1.0, max(0.0, (crest - 3.0) / 2.5))
 
     noise_level = (
-        ac_noise * 0.25 +
-        ent_noise * 0.35 +
-        flat_noise * 0.10 +
-        mod_noise * 0.15 +
-        crest_noise * 0.15
+        ac_noise   * 0.10 +
+        ent_noise  * 0.25 +
+        flat_noise * 0.05 +
+        mod_noise  * 0.50 +   # dominant: low modulation = noise
+        crest_noise * 0.10
     )
     noise_level = min(1.0, max(0.0, noise_level))
 
-    # Map to 1-5 stars – stricter thresholds (v2)
+    # Map to 1-5 stars (v3 – strict)
+    # Verified on real data: HF noise/carriers score 0.55-0.70 → 1 star
+    # Good voice broadcast (mod≥0.25) would score < 0.15 → 4-5 stars
     if noise_level >= 0.55:
         audio_score = 1
-    elif noise_level >= 0.40:
+    elif noise_level >= 0.38:
         audio_score = 2
-    elif noise_level >= 0.25:
+    elif noise_level >= 0.22:
         audio_score = 3
-    elif noise_level >= 0.12:
+    elif noise_level >= 0.10:
         audio_score = 4
     else:
         audio_score = 5

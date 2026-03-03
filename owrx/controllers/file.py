@@ -272,7 +272,9 @@ class FilesController(WebpageController):
             rows += '<span class="group-arrow">▼</span> 📁 %s <span class="group-count">(%d)</span></div>\n' % (group_label, len(entries))
             rows += '<div class="group-body">\n'
 
-            for entry in entries:
+            group_id = 'grp_%d' % hash(group_label)
+            MAX_VISIBLE = 10
+            for idx, entry in enumerate(entries):
                 filename = entry['filename']
                 info = entry['info']
                 is_audio = entry['is_audio']
@@ -388,7 +390,7 @@ class FilesController(WebpageController):
                     quality_row = '<div class="card-quality">%s</div>' % entry['quality_html']
 
                 rows += (
-                    '<div class="%s">'
+                    '<div class="%s"%s>'
                     '<div class="card-top">'
                     '<span class="file-icon">%s</span>'
                     '<span class="file-name">%s</span>'
@@ -399,7 +401,15 @@ class FilesController(WebpageController):
                     '%s'
                     '%s'
                     '</div>\n'
-                ) % (card_class, icon, filename, station_html, meta_html, buttons_html, quality_row, player_html)
+                ) % (card_class,
+                     ' style="display:none" data-grp="%s"' % group_id if idx >= MAX_VISIBLE else '',
+                     icon, filename, station_html, meta_html, buttons_html, quality_row, player_html)
+
+            if len(entries) > MAX_VISIBLE:
+                extra = len(entries) - MAX_VISIBLE
+                rows += ('<button class="btn-load-more" onclick="'
+                         "document.querySelectorAll('[data-grp=\"%s\"]').forEach(function(e){e.style.display=''});this.remove()"
+                         '">\U0001F4C2 Carica altri %d...</button>\n') % (group_id, extra)
 
             rows += '</div></div>\n'
 
