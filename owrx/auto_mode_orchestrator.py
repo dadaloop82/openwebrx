@@ -51,6 +51,15 @@ logger = logging.getLogger(__name__)
 SCHEDULE_EVENTS_JSON = "/var/www/html/sdr-eibi-events.json"
 RATINGS_DB_PATH = "/var/lib/openwebrx/signal_ratings.json"
 
+# -- Geographic filter: EIBI target regions receivable from Bolzano (46.5°N 11.3°E)
+# Discone antenna + LNA, RTL-SDR direct sampling 3-30 MHz
+BOLZANO_RECEIVABLE_TARGETS = {
+    'Eu', 'CEu', 'WEu', 'SEu', 'EEu', 'NEu', 'SEE',  # Europe
+    'ME', 'NAf',                                        # Near East, North Africa
+    'CIS', 'Cau', 'UKR', 'RUS',                        # CIS / ex-USSR
+    'NAO', 'Global', 'ITN',                             # Atlantic, Global, Italy
+}
+
 # -- Tuning constants -----------------------------------------------------
 EVENT_DWELL_SECONDS = 60                           # dwell per event in scan
 SIGNAL_SAMPLE_INTERVAL = 3                         # seconds between samples
@@ -972,6 +981,12 @@ class AutoModeOrchestrator:
                 end_str = ev.get("end_utc", "")
                 dur_min = ev.get("duration_min")
                 source = ev.get("source", "EIBI")
+
+                # Skip EIBI events not receivable from Bolzano
+                if source == "EIBI":
+                    target = ev.get("target", "")
+                    if target and target not in BOLZANO_RECEIVABLE_TARGETS:
+                        continue
 
                 if end_str and ":" in end_str:
                     try:
