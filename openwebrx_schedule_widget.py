@@ -1706,13 +1706,24 @@ async function rateAutoQuality(event, ratingKey, score) {{
 
 function updateCountdowns() {{
     const now = Date.now();
+    let staleCount = 0;
     transmissions.forEach((tx, idx) => {{
         let countdown;
+        const card = document.querySelector(`.transmission[data-idx-tx="${{idx}}"]`) ||
+                     (document.querySelectorAll('.transmission')[idx]);
         if (tx.onAir) {{
             const endDiff = tx.endMs - now;
             const endMin = Math.floor(endDiff / 60000);
             if (endDiff <= 0) {{
-                countdown = "APPENA TERMINATO";
+                const goneMin = Math.floor(-endDiff / 60000);
+                if (goneMin >= 5) {{
+                    countdown = "TERMINATO";
+                    staleCount++;
+                    if(card) {{ card.style.opacity='0.3'; card.style.filter='saturate(0.2)'; }}
+                }} else {{
+                    countdown = `TERMINATO da ${{goneMin > 0 ? goneMin+'min' : 'poco'}}`;
+                    if(card) {{ card.style.opacity='0.5'; card.style.filter='saturate(0.4)'; }}
+                }}
             }} else if (endMin >= 60) {{
                 const h = Math.floor(endMin / 60), m = endMin % 60;
                 countdown = `IN CORSO \u2014 fine tra ${{h}}h ${{m}}m`;
@@ -1729,6 +1740,8 @@ function updateCountdowns() {{
             const diffSec = Math.floor((diffMs % 60000) / 1000);
             if (diffMin < -60) {{
                 countdown = "TERMINATO";
+                staleCount++;
+                if(card) {{ card.style.opacity='0.3'; card.style.filter='saturate(0.2)'; }}
             }} else if (diffMin < 0) {{
                 countdown = `IN CORSO, iniziato alle ${{tx.time}}`;
             }} else if (diffMin >= 60) {{
@@ -1744,6 +1757,11 @@ function updateCountdowns() {{
         const el = document.querySelector(`[data-idx="${{idx}}"]`);
         if (el) el.textContent = countdown;
     }});
+    // Auto-reload quando >40% delle card sono terminate (dati stale)
+    if (staleCount > 0 && staleCount >= Math.ceil(transmissions.length * 0.4)) {{
+        console.log('🔄 Troppe card terminate, reload pagina...');
+        location.reload();
+    }}
 }}
 
 // Aggiorna orologio, data, orario locale e countdown ogni secondo
