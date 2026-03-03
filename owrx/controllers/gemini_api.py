@@ -534,14 +534,18 @@ class GeminiRecordingController(Controller):
 **Posizione ricevitore:** Bolzano, Alto Adige, Italia (46.5°N 11.3°E, Regione ITU 1)
 **Antenna:** Discone artigianale + LNA (Nooelec NESDR SMArt v5, direct sampling HF)
 
-Ascolta attentamente l'audio allegato e rispondi in italiano, in modo CONCISO (max 15-20 righe):
+Ascolta attentamente l'audio allegato e scrivi un **rapporto professionale in italiano** come farebbe un radioascoltatore esperto o un operatore di monitoraggio. Il rapporto deve essere un testo unico e fluido (NON una lista numerata, NON domande e risposte), in massimo 15-20 righe.
 
-1. **Cosa senti?** Descrivi il contenuto audio (voce, musica, dati digitali, rumore, portante, interferenze, etc.)
-2. **Lingua:** Se c'è parlato, in quale lingua parlano? Traduci brevemente cosa dicono se possibile.
-3. **Identificazione stazione:** Quale stazione radio o servizio è secondo te? Basati sulla frequenza, l'orario UTC, la posizione del ricevitore (Bolzano) e il contenuto audio. Indica la sigla della stazione se possibile.
-4. **Tipo di trasmissione:** Broadcast internazionale, utility, radioamatore, militare, aeronautica, marittimo, numeri, time signal, etc.?
-5. **Qualità ricezione:** Come giudichi la qualità? (ottima/buona/discreta/scarsa/pessima/solo rumore)
-6. **Note:** Eventuali informazioni utili per l'ascoltatore.
+Il rapporto deve coprire: identificazione della stazione/servizio (basandoti su frequenza, orario, posizione del ricevitore e contenuto audio), tipo di trasmissione (broadcast, utility, numeri, militare, ecc.), valutazione della qualità di ricezione, e eventuali note tecniche rilevanti.
+
+**IMPORTANTE — Trascrizione e traduzione:** Se nell'audio è presente parlato, musica con testo, annunci o qualsiasi contenuto vocale comprensibile:
+- Indica la lingua rilevata.
+- Trascrivi il più possibile di ciò che viene detto (anche se frammentario o parziale a causa del rumore).
+- Fornisci la traduzione in italiano di tutto il parlato trascritto.
+- Se si tratta di un notiziario, programma o discorso, riassumi l'argomento di cui parlano.
+Se il contenuto è solo rumore, portante, dati digitali o segnale non vocale, descrivilo tecnicamente.
+
+Usa un tono tecnico ma accessibile, come un bollettino di monitoraggio radio professionale.
 """
             custom_q = data.get('question', '')
             if custom_q:

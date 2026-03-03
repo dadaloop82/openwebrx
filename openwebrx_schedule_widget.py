@@ -556,6 +556,10 @@ body{{font-family:Arial,sans-serif;background:linear-gradient(135deg,#1e3c72,#2a
 .nav-bar a:hover{{background:rgba(255,255,255,0.25);transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,0,0,0.3)}}
 .nav-bar a.rec-link{{border-color:#FF5722;background:rgba(255,87,34,0.25)}}
 .nav-bar a.rec-link:hover{{background:rgba(255,87,34,0.4);box-shadow:0 4px 12px rgba(255,87,34,0.4)}}
+.sort-bar{{display:flex;justify-content:center;gap:8px;margin-bottom:18px;flex-wrap:wrap}}
+.sort-btn{{display:inline-flex;align-items:center;gap:4px;padding:6px 14px;background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.7);border:1px solid rgba(255,255,255,0.15);border-radius:20px;font-size:0.82em;font-weight:600;cursor:pointer;transition:all 0.25s;user-select:none}}
+.sort-btn:hover{{background:rgba(255,255,255,0.2);color:#fff}}
+.sort-btn.active{{background:rgba(100,181,246,0.3);color:#90CAF9;border-color:rgba(100,181,246,0.5)}}
 .transmission{{background:rgba(255,255,255,0.15);border-radius:10px;padding:20px;margin-bottom:15px;border-left:4px solid #4CAF50;cursor:pointer;transition:all 0.3s;position:relative}}
 .transmission:hover{{transform:translateX(5px);background:rgba(255,255,255,0.2)}}
 .transmission.next{{border-left-color:#FF5722;background:rgba(255,87,34,0.2)}}
@@ -692,6 +696,13 @@ async function openFrequency(event, freq, mode, name, profile) {{
   <a href="{OPENWEBRX_URL}/files" target="_blank">📁 Files Audio</a>
   <a href="{OPENWEBRX_URL}" target="_blank">📻 Radio</a>
   <a href="{OPENWEBRX_URL}/map" target="_blank">🗺️ Mappa</a>
+</div>
+<div class="sort-bar" id="sort-bar">
+  <span style="opacity:0.5;font-size:0.82em;align-self:center">Ordina:</span>
+  <button class="sort-btn active" data-sort="time-asc" onclick="sortCards(this)">⏰ Tempo ↑</button>
+  <button class="sort-btn" data-sort="time-desc" onclick="sortCards(this)">⏰ Tempo ↓</button>
+  <button class="sort-btn" data-sort="stars-desc" onclick="sortCards(this)">⭐ Stelle ↓</button>
+  <button class="sort-btn" data-sort="stars-asc" onclick="sortCards(this)">⭐ Stelle ↑</button>
 </div>
 <div class="auto-mode-panel" id="auto-mode-panel">
   <div class="auto-panel-top">
@@ -1757,6 +1768,58 @@ setInterval(() => {{
 
 // Esegui subito il primo aggiornamento
 updateCountdowns();
+
+// ---- Sort cards ----
+function sortCards(btn) {{
+  document.querySelectorAll('.sort-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const mode = btn.getAttribute('data-sort');
+  const container = document.querySelector('.container');
+  const cards = Array.from(container.querySelectorAll('.transmission'));
+  if(cards.length === 0) return;
+
+  cards.forEach((card, idx) => {{
+    card._txIdx = idx;
+    // Stelle: conta le stelle piene nel badge auto-quality
+    const stars = card.querySelectorAll('.auto-quality-stars .star');
+    let starCount = 0;
+    stars.forEach(s => {{ if(s.textContent === '⭐') starCount++; }});
+    card._stars = starCount;
+    // Tempo: usa transmissions array
+    if(idx < transmissions.length) {{
+      const tx = transmissions[idx];
+      if(tx.onAir) {{
+        card._timeKey = -(tx.endMs || 0); // on-air: ordina per fine (negativo = prima)
+      }} else {{
+        card._timeKey = tx.targetMs; // upcoming: ordina per inizio
+      }}
+    }} else {{
+      card._timeKey = Infinity;
+    }}
+  }});
+
+  if(mode === 'time-asc') {{
+    cards.sort((a,b) => a._timeKey - b._timeKey);
+  }} else if(mode === 'time-desc') {{
+    cards.sort((a,b) => b._timeKey - a._timeKey);
+  }} else if(mode === 'stars-desc') {{
+    cards.sort((a,b) => b._stars - a._stars || a._timeKey - b._timeKey);
+  }} else if(mode === 'stars-asc') {{
+    cards.sort((a,b) => a._stars - b._stars || a._timeKey - b._timeKey);
+  }}
+
+  // Rimuovi classe 'next' da tutti e rimetti sulla prima card
+  cards.forEach(c => c.classList.remove('next'));
+  if(cards.length > 0) cards[0].classList.add('next');
+
+  // Re-insert in DOM order
+  const frag = document.createDocumentFragment();
+  cards.forEach(c => frag.appendChild(c));
+  // Insert before footer/script
+  const footer = container.querySelector('.footer');
+  if(footer) container.insertBefore(frag, footer);
+  else container.appendChild(frag);
+}}
 </script>
 <div class="footer">SDR Schedule Widget v2.1 &nbsp;|&nbsp; OpenWebRX+ v1.2.106 &nbsp;|&nbsp; Generato: {update_time} &nbsp;|&nbsp; <a href="{OPENWEBRX_URL}/recordings" target="_blank" style="color:#FF5722;text-decoration:none;font-weight:bold">🔴 Registrazioni</a></div>
 <!-- Gemini AI Modal for recordings -->
