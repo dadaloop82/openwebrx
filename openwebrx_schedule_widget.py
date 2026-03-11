@@ -269,19 +269,18 @@ def get_transmissions():
         
         # BROADCAST (verificati attivi)
         {'time': '07:00', 'freq': '7.385', 'type': 'BROADCAST', 'days': 'Tutti',
+         'description': 'Radio Cina Internazionale (CRI)', 'mode': 'AM', 'bandwidth': '10', 'decoder': 'Audio'},
+        {'time': '07:00', 'freq': '7.205', 'type': 'BROADCAST', 'days': 'Tutti',
          'description': 'Radio Romania International [ITA]', 'mode': 'AM', 'bandwidth': '10', 'decoder': 'Audio'},
         {'time': '19:00', 'freq': '9.790', 'type': 'BROADCAST', 'days': 'Tutti',
          'description': 'Radio Romania International', 'mode': 'AM', 'bandwidth': '10', 'decoder': 'Audio'},
-        {'time': '08:30', 'freq': '7.250', 'type': 'BROADCAST', 'days': 'Domenica',
-         'description': 'Vatican Radio [ITA]', 'mode': 'AM', 'bandwidth': '10', 'decoder': 'Audio'},
-        {'time': '17:00', 'freq': '9.660', 'type': 'BROADCAST', 'days': 'Tutti',
-         'description': 'Vatican Radio', 'mode': 'AM', 'bandwidth': '10', 'decoder': 'Audio'},
+        # NOTA: Vatican Radio rimossa — Radio Vaticana ha tagliato quasi tutte le trasmissioni SW verso l'Europa nel 2012.
         
         # SATELLITI METEO
         {'time': '09:30', 'freq': '137.620', 'type': 'SATELLITE', 'days': 'Variabile',
-         'description': 'NOAA 18 APT', 'mode': 'WFM', 'bandwidth': '40', 'decoder': 'WXtoImg/SatDump'},
-        {'time': '11:15', 'freq': '137.912', 'type': 'SATELLITE', 'days': 'Variabile',
          'description': 'NOAA 15 APT', 'mode': 'WFM', 'bandwidth': '40', 'decoder': 'WXtoImg/SatDump'},
+        {'time': '11:15', 'freq': '137.9125', 'type': 'SATELLITE', 'days': 'Variabile',
+         'description': 'NOAA 18 APT', 'mode': 'WFM', 'bandwidth': '40', 'decoder': 'WXtoImg/SatDump'},
         {'time': '14:20', 'freq': '137.100', 'type': 'SATELLITE', 'days': 'Variabile',
          'description': 'NOAA 19 APT', 'mode': 'WFM', 'bandwidth': '40', 'decoder': 'WXtoImg/SatDump'},
         {'time': '18:45', 'freq': '137.900', 'type': 'SATELLITE', 'days': 'Variabile',
@@ -290,27 +289,25 @@ def get_transmissions():
         # THE PIP (sporadico ma ricevibile)
         {'time': '03:00', 'freq': '3.756', 'type': 'UTILITY', 'days': 'Irregolare',
          'description': 'The Pip (Russia)', 'mode': 'AM', 'bandwidth': '6', 'decoder': 'Audio'},
-        {'time': '21:00', 'freq': '4.770', 'type': 'UTILITY', 'days': 'Irregolare',
-         'description': 'The Pip (Russia)', 'mode': 'AM', 'bandwidth': '6', 'decoder': 'Audio'},
+        # NOTA: 4.770 MHz rimossa — non è una frequenza documentata del Pip.
         
         # NOTA: CHU Canada (7.850/14.670 MHz) e WWV USA (5/10/15 MHz) rimossi:
         #       distanza 7000-8500 km, NON ricevibili da Bolzano.
         
-        # BBC WORLD SERVICE su onde corte (ricevibile in Europa)
-        {'time': '06:00', 'freq': '6.195', 'type': 'BROADCAST', 'days': 'Tutti',
-         'description': 'BBC World Service English 49m', 'mode': 'AM', 'bandwidth': '10', 'decoder': 'Audio'},
+        # BBC WORLD SERVICE su onde corte
+        # NOTA: BBC 6.195 MHz rimossa — BBC ha cessato le trasmissioni SW verso l'Europa nel 2008.
         {'time': '18:00', 'freq': '9.410', 'type': 'BROADCAST', 'days': 'Tutti',
          'description': 'BBC World Service English 31m', 'mode': 'AM', 'bandwidth': '10', 'decoder': 'Audio'},
         
         # NOTA: HM01 Cuba (6.855 MHz) rimosso: distanza ~8500 km, NON ricevibile da Bolzano.
         
-        # DWD Pinneberg - terza frequenza (13 MHz, propagazione diurna)
-        {'time': '06:00,12:00', 'freq': '13.8825', 'type': 'WEFAX', 'days': 'Tutti',
-         'description': 'DWD Pinneberg Germany 13 MHz (Mappe)', 'mode': 'USB', 'bandwidth': '3', 'decoder': 'OpenWebRX+ FAX'},
-        
-        # DWD Pinneberg - frequenza notturna 3.855 MHz
+        # DWD Pinneberg WEFAX (3 frequenze)
         {'time': '00:00,06:00', 'freq': '3.855', 'type': 'WEFAX', 'days': 'Tutti',
          'description': 'DWD Pinneberg Germany 3 MHz (Mappe)', 'mode': 'USB', 'bandwidth': '3', 'decoder': 'OpenWebRX+ FAX'},
+        {'time': '06:00,12:00', 'freq': '7.880', 'type': 'WEFAX', 'days': 'Tutti',
+         'description': 'DWD Pinneberg Germany 7 MHz (Mappe)', 'mode': 'USB', 'bandwidth': '3', 'decoder': 'OpenWebRX+ FAX'},
+        {'time': '06:00,12:00', 'freq': '13.8825', 'type': 'WEFAX', 'days': 'Tutti',
+         'description': 'DWD Pinneberg Germany 13 MHz (Mappe)', 'mode': 'USB', 'bandwidth': '3', 'decoder': 'OpenWebRX+ FAX'},
         
         # RAF VOLMET - Meteo aviazione militare UK
         {'time': '05:00,17:00', 'freq': '11.253', 'type': 'VOLMET', 'days': 'Tutti',
@@ -342,9 +339,7 @@ def get_transmissions():
         {'time': '12:00,20:00', 'freq': '145.825', 'type': 'SATELLITE', 'days': 'Variabile',
          'description': 'ISS APRS Packet Radio', 'mode': 'NFM', 'bandwidth': '12.5', 'decoder': 'Packet/APRS'},
         
-        # Radio Exterior de Espana
-        {'time': '00:00', 'freq': '9.690', 'type': 'BROADCAST', 'days': 'Tutti',
-         'description': 'Radio Exterior de España', 'mode': 'AM', 'bandwidth': '10', 'decoder': 'Audio'},
+        # NOTA: Radio Exterior de España (9.690 MHz) rimossa — REE ha cessato tutte le trasmissioni SW a ottobre 2014.
         
         # NOTA: BPM Cina (5.154 MHz) rimosso: distanza ~9000 km, NON ricevibile da Bolzano.
     ]
