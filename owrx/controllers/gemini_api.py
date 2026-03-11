@@ -299,14 +299,15 @@ class GeminiAnalyzeController(Controller):
 
             # Build the prompt
             squelch_str = f"{squelch} dB" if squelch else "non impostato"
-            prompt = f"""Sei un esperto di radio e telecomunicazioni. Analizza questa sintonizzazione radio in modo CONCISO e SINTETICO.
+            prompt = f"""Sei un esperto di radio e telecomunicazioni e un esperto linguista poliglotta. Analizza questa sintonizzazione radio in modo CONCISO e SINTETICO.
 
 **Frequenza:** {freq_mhz:.6f} MHz ({freq_hz} Hz)
 **Modo:** {mode.upper()} | **Banda:** {bandwidth} Hz | **Squelch:** {squelch_str}
+**Posizione ricevitore:** Bolzano/Bozen, Alto Adige/Südtirol, Italia (zona bilingue italiano/tedesco)
 **UTC:** {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}
 {audio_info}
 
-IMPORTANTE: Rispondi in italiano, in modo BREVE e RIASSUNTIVO (max 10-15 righe). Niente lunghi paragrafi.
+IMPORTANTE: Rispondi in italiano, in modo BREVE e RIASSUNTIVO (max 15-20 righe). Niente lunghi paragrafi.
 
 Rispondi con questo formato:
 
@@ -322,7 +323,15 @@ Rispondi con questo formato:
 
             if audio_wav:
                 audio_dur = (len(audio_wav) - 44) / (SAMPLE_RATE * 2)
-                prompt += f"\n**Audio allegato** ({audio_dur:.1f}s dal ricevitore SDR): Descrivi brevemente cosa senti (voce, musica, dati, rumore, portante)."
+                prompt += f"""\n**Audio allegato** ({audio_dur:.1f}s dal ricevitore SDR).
+
+ANALISI AUDIO RICHIESTA - Rispondi con queste sezioni aggiuntive:
+
+**Lingua:** Identifica la lingua parlata nell'audio (può essere italiano, tedesco, dialetto sudtirolese/bavarese, inglese, o altro). Il ricevitore è a Bolzano, quindi è molto comune sentire tedesco e dialetto sudtirolese.
+**Trascrizione:** Trascrivi il più fedelmente possibile quello che viene detto nell'audio. Se la qualità è scarsa, trascrivi quello che riesci a capire e indica le parti incerte con [?] o [...]
+**Traduzione:** Se la lingua NON è italiano, fornisci la traduzione in italiano di quello che viene detto.
+**Contenuto:** Descrivi brevemente cosa senti (voce, musica, dati, rumore, portante, comunicazione radio bidirezionale, ecc.) e il contesto della comunicazione.
+"""
 
             # Call Gemini
             response_text = _call_gemini(prompt, audio_wav)

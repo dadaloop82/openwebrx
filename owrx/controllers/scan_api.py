@@ -44,9 +44,36 @@ class ScanFrequenciesController(Controller):
         """GET /api/scan/frequencies - list current scan frequencies"""
         try:
             config = _load_config()
-            freqs = config.get('orchestrator', {}).get('frequencies', [])
+            orch = config.get('orchestrator', {})
+            freqs = orch.get('frequencies', [])
+
+            # Normalize each entry to always have both frequency (Hz) and frequency_mhz
+            normalized = []
+            for f in freqs:
+                entry = dict(f)
+                if 'frequency' in entry and 'frequency_mhz' not in entry:
+                    entry['frequency_mhz'] = round(entry['frequency'] / 1e6, 6)
+                elif 'frequency_mhz' in entry and 'frequency' not in entry:
+                    entry['frequency'] = int(float(entry['frequency_mhz']) * 1e6)
+                # Normalize bandwidth: if > 1000, it's in Hz, convert display to kHz
+                if 'bandwidth' in entry:
+                    bw = entry['bandwidth']
+                    if isinstance(bw, (int, float)) and bw > 1000:
+                        entry['bandwidth_hz'] = int(bw)
+                        entry['bandwidth'] = str(round(bw / 1000, 1))
+                    elif isinstance(bw, str):
+                        entry['bandwidth_hz'] = int(float(bw) * 1000) if bw else 12500
+                # Round squelch to 2 decimal places
+                if 'squelch' in entry and isinstance(entry['squelch'], float):
+                    entry['squelch'] = round(entry['squelch'], 2)
+                normalized.append(entry)
+
             self.send_response(
-                json.dumps({"frequencies": freqs}),
+                json.dumps({
+                    "frequencies": normalized,
+                    "scan_enabled": orch.get('enabled', True),
+                    "silence_timeout_seconds": orch.get('silence_timeout', 15)
+                }),
                 content_type="application/json",
                 headers={"Access-Control-Allow-Origin": "*"}
             )

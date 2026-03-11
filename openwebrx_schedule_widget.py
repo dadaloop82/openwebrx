@@ -946,9 +946,21 @@ async function loadScanFreqs(){{
       const li = document.createElement('li');
       li.className = 'scan-freq-item';
       const decoderInfo = f.decoder ? ' | Decoder: '+f.decoder : '';
-      li.innerHTML = '<div class="freq-info"><div class="freq-label">'+f.frequency_mhz+' MHz — '+
-        (f.label||'')+'</div><div class="freq-detail">'+f.mode+' | BW: '+(f.bandwidth||'auto')+
-        ' kHz | Squelch: '+(f.squelch||0.10)+decoderInfo+'</div></div>'+
+      // Handle both formats: frequency_mhz (string) or frequency (Hz integer)
+      var freqDisplay = f.frequency_mhz;
+      if (freqDisplay === undefined && f.frequency) {{
+        freqDisplay = (f.frequency / 1e6).toFixed(3);
+      }}
+      // Bandwidth: normalize display
+      var bwDisplay = f.bandwidth || 'auto';
+      if (typeof bwDisplay === 'number' && bwDisplay > 1000) {{
+        bwDisplay = (bwDisplay / 1000).toFixed(1);
+      }}
+      // Squelch: round for display
+      var sqDisplay = (typeof f.squelch === 'number') ? f.squelch.toFixed(2) : (f.squelch || '0.10');
+      li.innerHTML = '<div class="freq-info"><div class="freq-label">'+(freqDisplay||'?')+' MHz — '+
+        (f.label||'')+'</div><div class="freq-detail">'+f.mode+' | BW: '+bwDisplay+
+        ' kHz | Squelch: '+sqDisplay+decoderInfo+'</div></div>'+
         '<button class="del-btn" onclick="deleteScanFreq('+i+')">🗑️</button>';
       list.appendChild(li);
     }});
