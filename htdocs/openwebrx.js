@@ -1887,14 +1887,14 @@ function bookmark_jump_load() {
         var $select = $('#openwebrx-bookmark-jump-listbox');
         $select.find('option:not(:first)').remove();
 
-        // Sort alphabetically by name (case-insensitive)
+        // Sort by frequency ascending
         var sorted = data.slice().sort(function(a, b) {
-            return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
+            return a.frequency - b.frequency;
         });
 
         sorted.forEach(function(bm, idx) {
             var freqMHz = (bm.frequency / 1e6).toFixed(bm.frequency >= 30000000 ? 4 : 3);
-            var label = bm.name + ' (' + freqMHz + ' MHz)';
+            var label = freqMHz + ' MHz — ' + bm.name;
             // Store the index into _allBookmarks via a data attribute
             var $opt = $('<option></option>')
                 .val(JSON.stringify({
