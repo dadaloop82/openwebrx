@@ -1918,8 +1918,7 @@ function bookmark_jump_changed() {
     var bm;
     try { bm = JSON.parse(val); } catch(e) { return; }
 
-    // Reset dropdown to placeholder
-    $select.val('');
+    // Keep the selection visible in the dropdown
 
     // If we need to switch profile first
     var currentProfile = $('#openwebrx-sdr-profiles-listbox').val();
