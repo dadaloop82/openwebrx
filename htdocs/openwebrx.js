@@ -1878,6 +1878,93 @@ function sdr_profile_changed() {
     }));
 }
 
+// ========== Bookmark Jump Dropdown ==========
+var _allBookmarks = [];
+
+function bookmark_jump_load() {
+    $.getJSON('/api/bookmarks/all', function(data) {
+        _allBookmarks = data;
+        var $select = $('#openwebrx-bookmark-jump-listbox');
+        $select.find('option:not(:first)').remove();
+
+        // Sort alphabetically by name (case-insensitive)
+        var sorted = data.slice().sort(function(a, b) {
+            return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
+        });
+
+        sorted.forEach(function(bm, idx) {
+            var freqMHz = (bm.frequency / 1e6).toFixed(bm.frequency >= 30000000 ? 4 : 3);
+            var label = bm.name + ' (' + freqMHz + ' MHz)';
+            // Store the index into _allBookmarks via a data attribute
+            var $opt = $('<option></option>')
+                .val(JSON.stringify({
+                    frequency: bm.frequency,
+                    modulation: bm.modulation,
+                    underlying: bm.underlying || '',
+                    profile_id: bm.profile_id || '',
+                    name: bm.name
+                }))
+                .text(label);
+            $select.append($opt);
+        });
+    });
+}
+
+function bookmark_jump_changed() {
+    var $select = $('#openwebrx-bookmark-jump-listbox');
+    var val = $select.val();
+    if (!val) return;
+
+    var bm;
+    try { bm = JSON.parse(val); } catch(e) { return; }
+
+    // Reset dropdown to placeholder
+    $select.val('');
+
+    // If we need to switch profile first
+    var currentProfile = $('#openwebrx-sdr-profiles-listbox').val();
+    if (bm.profile_id && bm.profile_id !== currentProfile) {
+        // Switch profile, then tune after a delay
+        $('#openwebrx-sdr-profiles-listbox').val(bm.profile_id);
+        sdr_profile_changed();
+
+        // Wait for the new profile to be fully loaded by checking
+        // that center_freq covers our target frequency
+        var attempts = 0;
+        var waitAndTune = function() {
+            attempts++;
+            try {
+                var dp = UI.getDemodulatorPanel();
+                // Check that we have a center_freq that covers the bookmark
+                if (dp && dp.center_freq && dp.getDemodulator()) {
+                    var half = (bandwidth || 0) / 2;
+                    var inRange = Math.abs(bm.frequency - center_freq) <= half;
+                    if (inRange || attempts > 10) {
+                        UI.tuneBookmark(bm);
+                        return;
+                    }
+                }
+            } catch(e) {}
+            if (attempts < 40) {
+                setTimeout(waitAndTune, 250);
+            }
+        };
+        setTimeout(waitAndTune, 500);
+    } else {
+        // Same profile or no profile info - just tune directly
+        UI.tuneBookmark(bm);
+    }
+}
+
+// Load bookmarks on page ready and refresh periodically
+$(function() {
+    // Initial load after a short delay to let the page initialize
+    setTimeout(bookmark_jump_load, 2000);
+    // Refresh every 5 minutes
+    setInterval(bookmark_jump_load, 300000);
+});
+// ========== End Bookmark Jump Dropdown ==========
+
 function tuning_step_changed() {
     tuning_step = parseInt($('#openwebrx-tuning-step-listbox').val());
 }

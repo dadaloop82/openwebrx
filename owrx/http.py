@@ -4,6 +4,7 @@ from owrx.controllers.feature import FeatureController
 from owrx.controllers.assets import OwrxAssetsController, AprsSymbolsController, CompiledAssetsController
 from owrx.controllers.websocket import WebSocketController
 from owrx.controllers.api import ApiController
+from owrx.controllers.bookmarks_api import AllBookmarksApiController
 from owrx.controllers.metrics import MetricsController
 from owrx.controllers.file import FilesController, FileController
 from owrx.controllers.clients import ClientController
@@ -204,6 +205,7 @@ class Router(object):
             StaticRoute("/api/scan/frequencies", ScanFrequenciesController, method="DELETE", options={"action": "deleteAction"}),
             StaticRoute("/api/scan/add", ScanFrequenciesController, method="POST", options={"action": "add"}),
             StaticRoute("/api/scan/remove", ScanFrequenciesController, method="POST", options={"action": "remove"}),
+            StaticRoute("/api/bookmarks/all", AllBookmarksApiController),
             StaticRoute("/api/gemini/analyze", GeminiAnalyzeController, method="POST"),
             StaticRoute("/api/gemini/capture", GeminiCaptureController, method="POST"),
             StaticRoute("/api/gemini/bookmark", GeminiBookmarkController, method="POST"),

@@ -911,6 +911,22 @@ img.openwebrx-mirror-img
     height: 27px;
 }
 
+#openwebrx-bookmark-jump-listbox {
+    width: 100%;
+    font-size: 10pt;
+    height: 27px;
+    color: #aaa;
+}
+
+#openwebrx-bookmark-jump-listbox option {
+    color: #eee;
+    background: #333;
+}
+
+#openwebrx-bookmark-jump-listbox option:first-child {
+    color: #aaa;
+}
+
 #openwebrx-tuning-step-listbox {
     font-size: 10pt;
 }
