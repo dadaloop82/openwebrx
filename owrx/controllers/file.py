@@ -184,7 +184,34 @@ class FilesController(WebpageController):
             return "%d B" % size_bytes
         return ""
 
+    DURATION_CACHE_PATH = "/var/lib/openwebrx/duration_cache.json"
+    _duration_cache = None
+    _duration_cache_dirty = False
+
+    @classmethod
+    def _load_duration_cache(cls):
+        if cls._duration_cache is None:
+            try:
+                with open(cls.DURATION_CACHE_PATH, "r") as f:
+                    cls._duration_cache = json.load(f)
+            except Exception:
+                cls._duration_cache = {}
+
+    @classmethod
+    def _save_duration_cache(cls):
+        if cls._duration_cache_dirty:
+            try:
+                with open(cls.DURATION_CACHE_PATH, "w") as f:
+                    json.dump(cls._duration_cache, f)
+                cls._duration_cache_dirty = False
+            except Exception:
+                pass
+
     def _get_duration(self, filepath):
+        self._load_duration_cache()
+        key = os.path.basename(filepath)
+        if key in self._duration_cache:
+            return self._duration_cache[key]
         try:
             result = subprocess.run(
                 ["ffprobe", "-v", "quiet", "-show_entries", "format=duration",
@@ -193,15 +220,18 @@ class FilesController(WebpageController):
             )
             secs = float(result.stdout.strip())
             if secs < 1:
-                return "<1s"
+                dur = "<1s"
             elif secs < 60:
-                return "%ds" % int(secs)
+                dur = "%ds" % int(secs)
             elif secs < 3600:
-                return "%dm%02ds" % (int(secs) // 60, int(secs) % 60)
+                dur = "%dm%02ds" % (int(secs) // 60, int(secs) % 60)
             else:
-                return "%dh%02dm" % (int(secs) // 3600, (int(secs) % 3600) // 60)
+                dur = "%dh%02dm" % (int(secs) // 3600, (int(secs) % 3600) // 60)
         except Exception:
-            return ""
+            dur = ""
+        self._duration_cache[key] = dur
+        FilesController._duration_cache_dirty = True
+        return dur
 
     def template_variables(self):
         files = Storage.getSharedInstance().getStoredFiles()
@@ -255,6 +285,7 @@ class FilesController(WebpageController):
 
         # Sort descending by sort_key (newest first)
         file_entries.sort(key=lambda e: e['info']['sort_key'], reverse=True)
+        self._save_duration_cache()
 
         # Group by day+hour
         groups = OrderedDict()
