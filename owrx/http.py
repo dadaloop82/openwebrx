@@ -32,6 +32,7 @@ from owrx.controllers.scan_api import ScanFrequenciesController
 from owrx.controllers.gemini_api import GeminiAnalyzeController, GeminiCaptureController, GeminiBookmarkController, GeminiRecordingController
 from owrx.controllers.robots import RobotsController
 from owrx.controllers.system_stats import SystemStatsController
+from owrx.controllers.restart import RestartController
 from owrx.storage import Storage
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
@@ -211,6 +212,7 @@ class Router(object):
             StaticRoute("/api/gemini/bookmark", GeminiBookmarkController, method="POST"),
             StaticRoute("/api/gemini/analyze-recording", GeminiRecordingController, method="POST"),
             StaticRoute("/api/system/stats", SystemStatsController),
+            StaticRoute("/api/restart", RestartController, method="POST"),
             StaticRoute("/recordings", RecordingsPageController),
             StaticRoute("/ban", ClientController, method="POST", options={"action": "ban"}),
             StaticRoute("/unban", ClientController, method="POST", options={"action": "unban"}),

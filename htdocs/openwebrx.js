@@ -1490,6 +1490,29 @@ function audioReporter(stats) {
     }
 }
 
+function restartOpenWebRX() {
+    if (!confirm('Riavviare OpenWebRX?\nLa connessione verrà interrotta per qualche secondo.')) return;
+    var btn = document.getElementById('openwebrx-restart-btn');
+    if (btn) {
+        btn.style.opacity = '0.5';
+        btn.style.pointerEvents = 'none';
+    }
+    fetch('api/restart', {
+        method: 'POST',
+        headers: {'X-Requested-With': 'XMLHttpRequest'}
+    }).then(function(r) {
+        if (r.status === 403) {
+            alert('Accesso negato: devi essere autenticato come amministratore.');
+            if (btn) { btn.style.opacity = ''; btn.style.pointerEvents = ''; }
+            return;
+        }
+        // Wait a few seconds then reload the page
+        setTimeout(function() { window.location.reload(); }, 5000);
+    }).catch(function() {
+        setTimeout(function() { window.location.reload(); }, 5000);
+    });
+}
+
 function openwebrx_init() {
     // Name used by map links to tune receiver
     frames.name = 'openwebrx-rx';
