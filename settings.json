@@ -1,0 +1,1926 @@
+{
+    "version": 8,
+    "receiver_name": "SDR Station Italia",
+    "receiver_location": "Italy",
+    "receiver_qra": "JN45",
+    "receiver_asl": 200,
+    "receiver_gps": {
+        "lat": 46.46321987509185,
+        "lon": 11.331921872041052
+    },
+    "photo_title": "Stazione RTL-SDR Multi-banda",
+    "photo_desc": "HF (Direct Sampling) + VHF + UHF + Satelliti",
+    "receiver_admin": "admin@localhost",
+    "max_clients": 99,
+    "sdrs": {
+        "rtlsdr": {
+            "name": "RTL-SDR",
+            "type": "rtl_sdr",
+            "ppm": 0,
+            "profiles": {
+                "vlf": {
+                    "name": "VLF (0-250 kHz)",
+                    "center_freq": 125000,
+                    "samp_rate": 250000,
+                    "rf_gain": 28,
+                    "start_freq": 77500,
+                    "start_mod": "am",
+                    "tuning_step": "100",
+                    "direct_sampling": 2
+                },
+                "lf_low": {
+                    "name": "LF Bassa (175-425 kHz)",
+                    "center_freq": 300000,
+                    "samp_rate": 250000,
+                    "rf_gain": 28,
+                    "start_freq": 198000,
+                    "start_mod": "am",
+                    "tuning_step": "1000",
+                    "direct_sampling": 2
+                },
+                "lf_ndb": {
+                    "name": "LF/NDB (375-625 kHz)",
+                    "center_freq": 500000,
+                    "samp_rate": 250000,
+                    "rf_gain": 28,
+                    "start_freq": 410000,
+                    "start_mod": "am",
+                    "tuning_step": "1000",
+                    "direct_sampling": 2
+                },
+                "mw_530": {
+                    "name": "MW Bassa (530-780 kHz)",
+                    "center_freq": 655000,
+                    "samp_rate": 250000,
+                    "rf_gain": 28,
+                    "start_freq": 531000,
+                    "start_mod": "am",
+                    "tuning_step": "9000",
+                    "direct_sampling": 2
+                },
+                "mw_750": {
+                    "name": "MW Media (700-950 kHz)",
+                    "center_freq": 825000,
+                    "samp_rate": 250000,
+                    "rf_gain": 28,
+                    "start_freq": 747000,
+                    "start_mod": "am",
+                    "tuning_step": "9000",
+                    "direct_sampling": 2
+                },
+                "mw_950": {
+                    "name": "MW Alta (875-1125 kHz)",
+                    "center_freq": 1000000,
+                    "samp_rate": 250000,
+                    "rf_gain": 28,
+                    "start_freq": 999000,
+                    "start_mod": "am",
+                    "tuning_step": "9000",
+                    "direct_sampling": 2
+                },
+                "lw_mw": {
+                    "name": "LW/MW (0.5-2.7 MHz)",
+                    "center_freq": 1600000,
+                    "samp_rate": 2400000,
+                    "rf_gain": 28,
+                    "start_mod": "am",
+                    "direct_sampling": 2
+                },
+                "gap_00040": {
+                    "name": "HF Low [2.8-5.2 MHz]",
+                    "center_freq": 4000000,
+                    "samp_rate": 2400000,
+                    "rf_gain": 28,
+                    "start_mod": "am",
+                    "direct_sampling": 2
+                },
+                "hf_low_wide_seg01": {
+                    "name": "HF 80m-40m (3-8 MHz) [3.0-5.4 MHz] (1/2)",
+                    "center_freq": 4200000,
+                    "samp_rate": 2400000,
+                    "start_freq": 4200000,
+                    "start_mod": "usb",
+                    "rf_gain": 28,
+                    "direct_sampling": 2,
+                    "services": [
+                        "ft8",
+                        "wspr",
+                        "jt65",
+                        "jt9",
+                        "bpsk31",
+                        "bpsk63"
+                    ],
+                    "tuning_step": 100,
+                    "digital_voice": true,
+                    "dmr_enabled": false,
+                    "digital_modes": [
+                        "ft8",
+                        "ft4",
+                        "wspr",
+                        "psk31",
+                        "rtty"
+                    ],
+                    "waterfall_min_level": -64,
+                    "waterfall_max_level": -10
+                },
+                "hf_40m_bridge": {
+                    "name": "HF 40m (5.0-7.4 MHz)",
+                    "center_freq": 6200000,
+                    "samp_rate": 2400000,
+                    "rf_gain": 20,
+                    "direct_sampling": 2,
+                    "start_freq": 5450000,
+                    "start_mod": "usb"
+                },
+                "hf_low_wide_seg03": {
+                    "name": "HF 80m-40m (3-8 MHz) [5.6-8.0 MHz] (2/2)",
+                    "center_freq": 6800000,
+                    "samp_rate": 2400000,
+                    "start_freq": 6800000,
+                    "start_mod": "usb",
+                    "rf_gain": 30,
+                    "direct_sampling": 2,
+                    "services": [
+                        "ft8",
+                        "wspr",
+                        "jt65",
+                        "jt9",
+                        "bpsk31",
+                        "bpsk63"
+                    ],
+                    "tuning_step": 100,
+                    "digital_voice": true,
+                    "dmr_enabled": false,
+                    "digital_modes": [
+                        "ft8",
+                        "ft4",
+                        "wspr",
+                        "psk31",
+                        "rtty",
+                        "fax"
+                    ],
+                    "waterfall_min_level": -64,
+                    "waterfall_max_level": -10
+                },
+                "hf_shannon_volmet": {
+                    "name": "HF 40m-30m (8-9 MHz) Shannon VOLMET [7.300-9.700 MHz]",
+                    "center_freq": 8500000,
+                    "samp_rate": 2400000,
+                    "start_freq": 8957000,
+                    "start_mod": "usb",
+                    "tuning_step": 10000,
+                    "direct_sampling": 2,
+                    "rf_gain": 32,
+                    "lna_gain": 0,
+                    "tia_gain": 0,
+                    "ppm": 0,
+                    "profiles": [],
+                    "waterfall_levels": {
+                        "min": -64,
+                        "max": 0
+                    },
+                    "services": [
+                        {
+                            "modulation": "usb",
+                            "frequency": 8957000
+                        },
+                        {
+                            "modulation": "usb",
+                            "frequency": 8918000
+                        },
+                        {
+                            "modulation": "usb",
+                            "frequency": 8891000
+                        }
+                    ]
+                },
+                "hf_mid_wide_seg01": {
+                    "name": "HF 30m-20m (9-15 MHz) + SW [9.0-11.4 MHz] (1/3)",
+                    "center_freq": 10200000,
+                    "samp_rate": 2400000,
+                    "start_freq": 10200000,
+                    "start_mod": "usb",
+                    "rf_gain": 32,
+                    "direct_sampling": 2,
+                    "services": [
+                        "ft8",
+                        "wspr",
+                        "jt65",
+                        "jt9",
+                        "bpsk31",
+                        "bpsk63"
+                    ],
+                    "tuning_step": 100,
+                    "digital_voice": true,
+                    "dmr_enabled": false,
+                    "digital_modes": [
+                        "ft8",
+                        "ft4",
+                        "wspr",
+                        "psk31",
+                        "rtty"
+                    ],
+                    "waterfall_min_level": -64,
+                    "waterfall_max_level": -10
+                },
+                "hf_mid_wide_seg02": {
+                    "name": "HF 30m-20m (9-15 MHz) + SW [11.4-13.8 MHz] (2/3)",
+                    "center_freq": 12600000,
+                    "samp_rate": 2400000,
+                    "start_freq": 12600000,
+                    "start_mod": "usb",
+                    "rf_gain": 32,
+                    "direct_sampling": 2,
+                    "services": [
+                        "ft8",
+                        "wspr",
+                        "jt65",
+                        "jt9",
+                        "bpsk31",
+                        "bpsk63"
+                    ],
+                    "tuning_step": 100,
+                    "digital_voice": true,
+                    "dmr_enabled": false,
+                    "digital_modes": [
+                        "ft8",
+                        "ft4",
+                        "wspr",
+                        "psk31",
+                        "rtty"
+                    ],
+                    "waterfall_min_level": -64,
+                    "waterfall_max_level": -10
+                },
+                "hf_mid_wide_seg03": {
+                    "name": "HF 30m-20m (9-15 MHz) + SW [12.6-15.0 MHz] (3/3)",
+                    "center_freq": 13800000,
+                    "samp_rate": 2400000,
+                    "start_freq": 13800000,
+                    "start_mod": "usb",
+                    "rf_gain": 34,
+                    "direct_sampling": 2,
+                    "services": [
+                        "ft8",
+                        "wspr",
+                        "jt65",
+                        "jt9",
+                        "bpsk31",
+                        "bpsk63"
+                    ],
+                    "tuning_step": 100,
+                    "digital_voice": true,
+                    "dmr_enabled": false,
+                    "digital_modes": [
+                        "ft8",
+                        "ft4",
+                        "wspr",
+                        "psk31",
+                        "rtty"
+                    ],
+                    "waterfall_min_level": -64,
+                    "waterfall_max_level": -10
+                },
+                "hf_15_18": {
+                    "name": "HF 20m-17m (15-18 MHz) [15.0-17.4 MHz]",
+                    "center_freq": 16200000,
+                    "samp_rate": 2400000,
+                    "rf_gain": 20,
+                    "direct_sampling": 2,
+                    "start_freq": 15000000,
+                    "start_mod": "usb"
+                },
+                "hf_17m_bridge": {
+                    "name": "HF 17m Bridge (16.2-18.6 MHz)",
+                    "center_freq": 17400000,
+                    "samp_rate": 2400000,
+                    "rf_gain": 34,
+                    "start_mod": "usb",
+                    "direct_sampling": 2
+                },
+                "hf_high_wide_seg01": {
+                    "name": "HF 17m-10m (18-30 MHz) [18.0-20.4 MHz] (1/5)",
+                    "center_freq": 19200000,
+                    "samp_rate": 2400000,
+                    "start_freq": 19200000,
+                    "start_mod": "usb",
+                    "rf_gain": 34,
+                    "direct_sampling": 2,
+                    "services": [
+                        "ft8",
+                        "wspr",
+                        "jt65",
+                        "jt9",
+                        "bpsk31",
+                        "bpsk63"
+                    ],
+                    "tuning_step": 100,
+                    "digital_voice": true,
+                    "dmr_enabled": false,
+                    "digital_modes": [
+                        "ft8",
+                        "ft4",
+                        "wspr",
+                        "psk31",
+                        "rtty"
+                    ],
+                    "waterfall_min_level": -64,
+                    "waterfall_max_level": -10
+                },
+                "hf_high_wide_seg02": {
+                    "name": "HF 17m-10m (18-30 MHz) [20.4-22.8 MHz] (2/5)",
+                    "center_freq": 21600000,
+                    "samp_rate": 2400000,
+                    "start_freq": 21600000,
+                    "start_mod": "usb",
+                    "rf_gain": 34,
+                    "direct_sampling": 2,
+                    "services": [
+                        "ft8",
+                        "wspr",
+                        "jt65",
+                        "jt9",
+                        "bpsk31",
+                        "bpsk63"
+                    ],
+                    "tuning_step": 100,
+                    "digital_voice": true,
+                    "dmr_enabled": false,
+                    "digital_modes": [
+                        "ft8",
+                        "ft4",
+                        "wspr",
+                        "psk31",
+                        "rtty"
+                    ],
+                    "waterfall_min_level": -64,
+                    "waterfall_max_level": -10
+                },
+                "hf_high_wide_seg03": {
+                    "name": "HF 17m-10m (18-30 MHz) [22.8-25.2 MHz] (3/5)",
+                    "center_freq": 24000000,
+                    "samp_rate": 2400000,
+                    "start_freq": 24000000,
+                    "start_mod": "usb",
+                    "rf_gain": 34,
+                    "direct_sampling": 2,
+                    "services": [
+                        "ft8",
+                        "wspr",
+                        "jt65",
+                        "jt9",
+                        "bpsk31",
+                        "bpsk63"
+                    ],
+                    "tuning_step": 100,
+                    "digital_voice": true,
+                    "dmr_enabled": false,
+                    "digital_modes": [
+                        "ft8",
+                        "ft4",
+                        "wspr",
+                        "psk31",
+                        "rtty"
+                    ],
+                    "waterfall_min_level": -64,
+                    "waterfall_max_level": -10
+                },
+                "hf_high_wide_seg04": {
+                    "name": "HF 17m-10m (18-30 MHz) [25.2-27.6 MHz] (4/5)",
+                    "center_freq": 26400000,
+                    "samp_rate": 2400000,
+                    "start_freq": 26400000,
+                    "start_mod": "usb",
+                    "rf_gain": 34,
+                    "direct_sampling": 2,
+                    "services": [
+                        "ft8",
+                        "wspr",
+                        "jt65",
+                        "jt9",
+                        "bpsk31",
+                        "bpsk63"
+                    ],
+                    "tuning_step": 100,
+                    "digital_voice": true,
+                    "dmr_enabled": false,
+                    "digital_modes": [
+                        "ft8",
+                        "ft4",
+                        "wspr",
+                        "psk31",
+                        "rtty"
+                    ],
+                    "waterfall_min_level": -64,
+                    "waterfall_max_level": -10
+                },
+                "hf_high_wide_seg05": {
+                    "name": "HF 17m-10m (18-30 MHz) [27.6-30.0 MHz] (5/5)",
+                    "center_freq": 28800000,
+                    "samp_rate": 2400000,
+                    "start_freq": 28800000,
+                    "start_mod": "usb",
+                    "rf_gain": 34,
+                    "direct_sampling": 2,
+                    "services": [
+                        "ft8",
+                        "wspr",
+                        "jt65",
+                        "jt9",
+                        "bpsk31",
+                        "bpsk63"
+                    ],
+                    "tuning_step": 100,
+                    "digital_voice": true,
+                    "dmr_enabled": false,
+                    "digital_modes": [
+                        "ft8",
+                        "ft4",
+                        "wspr",
+                        "psk31",
+                        "rtty"
+                    ],
+                    "waterfall_min_level": -64,
+                    "waterfall_max_level": -10
+                },
+                "vhf_low_01": {
+                    "name": "VHF Low (30-50 MHz) [30.0-32.4 MHz]",
+                    "center_freq": 31200000,
+                    "samp_rate": 2400000,
+                    "rf_gain": 49.6,
+                    "start_mod": "nfm"
+                },
+                "vhf_low_02": {
+                    "name": "VHF Low (30-50 MHz) [32.4-34.8 MHz]",
+                    "center_freq": 33600000,
+                    "samp_rate": 2400000,
+                    "rf_gain": 49.6,
+                    "start_mod": "nfm"
+                },
+                "vhf_low_03": {
+                    "name": "VHF Low (30-50 MHz) [34.8-37.2 MHz]",
+                    "center_freq": 36000000,
+                    "samp_rate": 2400000,
+                    "rf_gain": 49.6,
+                    "start_mod": "nfm"
+                },
+                "vhf_low_04": {
+                    "name": "VHF Low (30-50 MHz) [37.2-39.6 MHz]",
+                    "center_freq": 38400000,
+                    "samp_rate": 2400000,
+                    "rf_gain": 49.6,
+                    "start_mod": "nfm"
+                },
+                "vhf_low_05": {
+                    "name": "VHF Low (30-50 MHz) [39.6-42.0 MHz]",
+                    "center_freq": 40800000,
+                    "samp_rate": 2400000,
+                    "rf_gain": 49.6,
+                    "start_mod": "nfm"
+                },
+                "vhf_low_06": {
+                    "name": "VHF Low (30-50 MHz) [42.0-44.4 MHz]",
+                    "center_freq": 43199999,
+                    "samp_rate": 2400000,
+                    "rf_gain": 49.6,
+                    "start_mod": "nfm"
+                },
+                "vhf_low_07": {
+                    "name": "VHF Low (30-50 MHz) [44.4-46.8 MHz]",
+                    "center_freq": 45599999,
+                    "samp_rate": 2400000,
+                    "rf_gain": 49.6,
+                    "start_mod": "nfm"
+                },
+                "vhf_low_08": {
+                    "name": "VHF Low (30-50 MHz) [46.8-49.2 MHz]",
+                    "center_freq": 47999999,
+                    "samp_rate": 2400000,
+                    "rf_gain": 49.6,
+                    "start_mod": "nfm"
+                },
+                "vhf_low_09": {
+                    "name": "VHF Low (30-50 MHz) [49.2-51.6 MHz]",
+                    "center_freq": 50399999,
+                    "samp_rate": 2400000,
+                    "rf_gain": 49.6,
+                    "start_mod": "nfm"
+                },
+                "6m": {
+                    "name": "6m (50 MHz)",
+                    "center_freq": 51000000,
+                    "samp_rate": 2400000,
+                    "start_freq": 50313000,
+                    "start_mod": "usb",
+                    "rf_gain": 35,
+                    "direct_sampling": 0,
+                    "services": [
+                        "ft8",
+                        "wspr"
+                    ],
+                    "waterfall_min_level": -64,
+                    "waterfall_max_level": -10
+                },
+                "vhf_4m_01": {
+                    "name": "VHF 4m (52-72 MHz) [52.2-54.6 MHz]",
+                    "center_freq": 53400000,
+                    "samp_rate": 2400000,
+                    "rf_gain": 49.6,
+                    "start_mod": "nfm"
+                },
+                "vhf_4m_02": {
+                    "name": "VHF 4m (52-72 MHz) [54.6-57.0 MHz]",
+                    "center_freq": 55800000,
+                    "samp_rate": 2400000,
+                    "rf_gain": 49.6,
+                    "start_mod": "nfm"
+                },
+                "vhf_4m_03": {
+                    "name": "VHF 4m (52-72 MHz) [57.0-59.4 MHz]",
+                    "center_freq": 58200000,
+                    "samp_rate": 2400000,
+                    "rf_gain": 49.6,
+                    "start_mod": "nfm"
+                },
+                "vhf_4m_04": {
+                    "name": "VHF 4m (52-72 MHz) [59.4-61.8 MHz]",
+                    "center_freq": 60600000,
+                    "samp_rate": 2400000,
+                    "rf_gain": 49.6,
+                    "start_mod": "nfm"
+                },
+                "vhf_4m_05": {
+                    "name": "VHF 4m (52-72 MHz) [61.8-64.2 MHz]",
+                    "center_freq": 63000000,
+                    "samp_rate": 2400000,
+                    "rf_gain": 49.6,
+                    "start_mod": "nfm"
+                },
+                "vhf_4m_06": {
+                    "name": "VHF 4m (52-72 MHz) [64.2-66.6 MHz]",
+                    "center_freq": 65400000,
+                    "samp_rate": 2400000,
+                    "rf_gain": 49.6,
+                    "start_mod": "nfm"
+                },
+                "vhf_4m_07": {
+                    "name": "VHF 4m (52-72 MHz) [66.6-69.0 MHz]",
+                    "center_freq": 67800000,
+                    "samp_rate": 2400000,
+                    "rf_gain": 49.6,
+                    "start_mod": "nfm"
+                },
+                "vhf_4m_08": {
+                    "name": "VHF 4m (52-72 MHz) [69.0-71.4 MHz]",
+                    "center_freq": 70200000,
+                    "samp_rate": 2400000,
+                    "rf_gain": 49.6,
+                    "start_mod": "nfm"
+                },
+                "vhf_4m_09": {
+                    "name": "VHF 4m (52-72 MHz) [71.4-73.8 MHz]",
+                    "center_freq": 72600000,
+                    "samp_rate": 2400000,
+                    "rf_gain": 49.6,
+                    "start_mod": "nfm"
+                },
+                "vvf_73mhz": {
+                    "name": "Vigili del Fuoco (73 MHz)",
+                    "center_freq": 73000000,
+                    "samp_rate": 2400000,
+                    "start_freq": 73500000,
+                    "start_mod": "nfm",
+                    "rf_gain": 38,
+                    "direct_sampling": 0,
+                    "waterfall_min_level": -64,
+                    "waterfall_max_level": -10
+                },
+                "vhf_low2_01": {
+                    "name": "VHF (74-88 MHz) [74.2-76.6 MHz]",
+                    "center_freq": 75400000,
+                    "samp_rate": 2400000,
+                    "rf_gain": 49.6,
+                    "start_mod": "nfm"
+                },
+                "vhf_low2_02": {
+                    "name": "VHF (74-88 MHz) [76.6-79.0 MHz]",
+                    "center_freq": 77800000,
+                    "samp_rate": 2400000,
+                    "rf_gain": 49.6,
+                    "start_mod": "nfm"
+                },
+                "vhf_low2_03": {
+                    "name": "VHF (74-88 MHz) [79.0-81.4 MHz]",
+                    "center_freq": 80200000,
+                    "samp_rate": 2400000,
+                    "rf_gain": 49.6,
+                    "start_mod": "nfm"
+                },
+                "vhf_low2_04": {
+                    "name": "VHF (74-88 MHz) [81.4-83.8 MHz]",
+                    "center_freq": 82600000,
+                    "samp_rate": 2400000,
+                    "rf_gain": 49.6,
+                    "start_mod": "nfm"
+                },
+                "vhf_low2_05": {
+                    "name": "VHF (74-88 MHz) [83.8-86.2 MHz]",
+                    "center_freq": 85000000,
+                    "samp_rate": 2400000,
+                    "rf_gain": 49.6,
+                    "start_mod": "nfm"
+                },
+                "vor_nav_01": {
+                    "name": "VOR/Nav (108-118 MHz) [108.0-111.2 MHz]",
+                    "center_freq": 109600000,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "am"
+                },
+                "vor_nav_02": {
+                    "name": "VOR/Nav (108-118 MHz) [111.2-114.4 MHz]",
+                    "center_freq": 112800000,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "am"
+                },
+                "vor_nav_03": {
+                    "name": "VOR/Nav (108-118 MHz) [114.4-117.6 MHz]",
+                    "center_freq": 116000000,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "am"
+                },
+                "vor_nav_04": {
+                    "name": "VOR/Nav (108-118 MHz) [117.6-120.8 MHz]",
+                    "center_freq": 119200000,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "am"
+                },
+                "airband_wide_seg01": {
+                    "name": "Airband (118-137 MHz) [118.0-121.2 MHz] (1/5)",
+                    "center_freq": 119600000,
+                    "samp_rate": 3200000,
+                    "start_freq": 119600000,
+                    "start_mod": "am",
+                    "rf_gain": 40,
+                    "direct_sampling": 0,
+                    "digital_voice": true,
+                    "dmr_enabled": false,
+                    "digital_modes": [
+                        "acars"
+                    ],
+                    "waterfall_min_level": -64,
+                    "waterfall_max_level": -10
+                },
+                "airband_wide_seg02": {
+                    "name": "Airband (118-137 MHz) [121.2-124.4 MHz] (2/5)",
+                    "center_freq": 122800000,
+                    "samp_rate": 3200000,
+                    "start_freq": 122800000,
+                    "start_mod": "am",
+                    "rf_gain": 40,
+                    "direct_sampling": 0,
+                    "digital_voice": true,
+                    "dmr_enabled": false,
+                    "digital_modes": [
+                        "acars"
+                    ],
+                    "waterfall_min_level": -64,
+                    "waterfall_max_level": -10
+                },
+                "airband_wide_seg03": {
+                    "name": "Airband (118-137 MHz) [124.4-127.6 MHz] (3/5)",
+                    "center_freq": 126000000,
+                    "samp_rate": 3200000,
+                    "start_freq": 126000000,
+                    "start_mod": "am",
+                    "rf_gain": 40,
+                    "direct_sampling": 0,
+                    "digital_voice": true,
+                    "dmr_enabled": false,
+                    "digital_modes": [
+                        "acars"
+                    ],
+                    "waterfall_min_level": -64,
+                    "waterfall_max_level": -10
+                },
+                "airband_wide_seg04": {
+                    "name": "Airband (118-137 MHz) [127.6-130.8 MHz] (4/5)",
+                    "center_freq": 129200000,
+                    "samp_rate": 3200000,
+                    "start_freq": 129200000,
+                    "start_mod": "am",
+                    "rf_gain": 40,
+                    "direct_sampling": 0,
+                    "digital_voice": true,
+                    "dmr_enabled": false,
+                    "digital_modes": [
+                        "acars"
+                    ],
+                    "waterfall_min_level": -64,
+                    "waterfall_max_level": -10
+                },
+                "airband_wide_seg05": {
+                    "name": "Airband (118-137 MHz) [130.8-134.0 MHz] (5/5)",
+                    "center_freq": 132400000,
+                    "samp_rate": 3200000,
+                    "start_freq": 132400000,
+                    "start_mod": "am",
+                    "rf_gain": 40,
+                    "direct_sampling": 0,
+                    "digital_voice": true,
+                    "dmr_enabled": false,
+                    "digital_modes": [
+                        "acars"
+                    ],
+                    "waterfall_min_level": -64,
+                    "waterfall_max_level": -10
+                },
+                "airband_wide_seg06": {
+                    "name": "Airband (118-137 MHz) [134.0-137.2 MHz] (6/6)",
+                    "center_freq": 135600000,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_freq": 135000000,
+                    "start_mod": "am"
+                },
+                "noaa_sat": {
+                    "name": "NOAA Weather Sat (137 MHz)",
+                    "center_freq": 137500000,
+                    "samp_rate": 2400000,
+                    "rf_gain": 49.6,
+                    "start_freq": 137620000,
+                    "start_mod": "wfm"
+                },
+                "mil_vhf_138": {
+                    "name": "Military/Sat VHF (138-142 MHz)",
+                    "center_freq": 140000000,
+                    "samp_rate": 2400000,
+                    "rf_gain": 49.6,
+                    "start_mod": "nfm"
+                },
+                "gap_01424": {
+                    "name": "VHF Services [141.2-143.6 MHz]",
+                    "center_freq": 142400000,
+                    "samp_rate": 2400000,
+                    "rf_gain": 49.6,
+                    "start_mod": "nfm"
+                },
+                "mil_vhf_142": {
+                    "name": "Military/Sat VHF (142-144 MHz)",
+                    "center_freq": 143000000,
+                    "samp_rate": 2400000,
+                    "rf_gain": 49.6,
+                    "start_mod": "nfm"
+                },
+                "vhf_2m": {
+                    "name": "VHF 2m HAM (144-148 MHz)",
+                    "center_freq": 145000000,
+                    "samp_rate": 2400000,
+                    "start_freq": 145500000,
+                    "start_mod": "nfm",
+                    "rf_gain": 28,
+                    "direct_sampling": 0,
+                    "services": [
+                        "packet",
+                        "pocsag"
+                    ],
+                    "digital_voice": true,
+                    "dmr_enabled": false,
+                    "digital_modes": [
+                        "ft8",
+                        "ft4",
+                        "wspr",
+                        "psk31",
+                        "rtty"
+                    ],
+                    "waterfall_min_level": -64,
+                    "waterfall_max_level": -10
+                },
+                "vhf_146": {
+                    "name": "VHF 146-148 MHz",
+                    "center_freq": 147000000,
+                    "samp_rate": 2400000,
+                    "rf_gain": 49.6,
+                    "start_mod": "nfm"
+                },
+                "polizia_vhf": {
+                    "name": "Polizia VHF (147-150 MHz)",
+                    "center_freq": 148500000,
+                    "samp_rate": 2400000,
+                    "start_freq": 148500000,
+                    "start_mod": "nfm",
+                    "rf_gain": 28,
+                    "direct_sampling": 0,
+                    "digital_voice": true,
+                    "dmr_enabled": false,
+                    "digital_modes": [
+                        "ft8",
+                        "ft4",
+                        "wspr",
+                        "psk31",
+                        "rtty"
+                    ],
+                    "waterfall_min_level": -64,
+                    "waterfall_max_level": -10
+                },
+                "gap_01509": {
+                    "name": "VHF Services [149.7-152.1 MHz]",
+                    "center_freq": 150900000,
+                    "samp_rate": 2400000,
+                    "rf_gain": 49.6,
+                    "start_mod": "nfm"
+                },
+                "vhf_150_153": {
+                    "name": "VHF Satellite/Services (150-153 MHz)",
+                    "center_freq": 151500000,
+                    "samp_rate": 2400000,
+                    "rf_gain": 49.6,
+                    "start_mod": "nfm"
+                },
+                "gap_01539": {
+                    "name": "VHF Services [152.7-155.1 MHz]",
+                    "center_freq": 153900000,
+                    "samp_rate": 2400000,
+                    "rf_gain": 49.6,
+                    "start_mod": "nfm"
+                },
+                "vhf_153_156": {
+                    "name": "VHF Services (153-156 MHz)",
+                    "center_freq": 154500000,
+                    "samp_rate": 2400000,
+                    "rf_gain": 49.6,
+                    "start_mod": "nfm"
+                },
+                "marine": {
+                    "name": "Marine VHF (156 MHz)",
+                    "center_freq": 157000000,
+                    "samp_rate": 2400000,
+                    "start_freq": 156800000,
+                    "start_mod": "nfm",
+                    "rf_gain": 28,
+                    "direct_sampling": 0,
+                    "digital_voice": true,
+                    "dmr_enabled": false,
+                    "digital_modes": [
+                        "ft8",
+                        "ft4",
+                        "wspr",
+                        "psk31",
+                        "rtty"
+                    ],
+                    "waterfall_min_level": -64,
+                    "waterfall_max_level": -10
+                },
+                "vhf_158_160": {
+                    "name": "VHF (158-160 MHz)",
+                    "center_freq": 159000000,
+                    "samp_rate": 2400000,
+                    "rf_gain": 49.6,
+                    "start_mod": "nfm"
+                },
+                "vhf_160_165_seg01": {
+                    "name": "VHF 160-162 MHz",
+                    "center_freq": 161000000,
+                    "samp_rate": 2400000,
+                    "start_freq": 160000000,
+                    "start_mod": "nfm",
+                    "direct_sampling": 0
+                },
+                "vhf_160_165_seg02": {
+                    "name": "VHF 162-164 MHz",
+                    "center_freq": 163000000,
+                    "samp_rate": 2400000,
+                    "start_freq": 163000000,
+                    "start_mod": "nfm",
+                    "direct_sampling": 0
+                },
+                "vhf_160_165_seg03": {
+                    "name": "VHF 164-166 MHz",
+                    "center_freq": 165000000,
+                    "samp_rate": 2400000,
+                    "start_freq": 165000000,
+                    "start_mod": "nfm",
+                    "direct_sampling": 0
+                },
+                "vhf_166_169": {
+                    "name": "VHF Paging/Services (166-169 MHz)",
+                    "center_freq": 167500000,
+                    "samp_rate": 2400000,
+                    "rf_gain": 49.6,
+                    "start_mod": "nfm"
+                },
+                "gap_01699": {
+                    "name": "VHF Services [168.7-171.1 MHz]",
+                    "center_freq": 169900000,
+                    "samp_rate": 2400000,
+                    "rf_gain": 49.6,
+                    "start_mod": "nfm"
+                },
+                "vhf_169_172": {
+                    "name": "VHF Services (169-172 MHz)",
+                    "center_freq": 170500000,
+                    "samp_rate": 2400000,
+                    "rf_gain": 49.6,
+                    "start_mod": "nfm"
+                },
+                "vhf_172_174": {
+                    "name": "VHF Services (172-174 MHz)",
+                    "center_freq": 173000000,
+                    "samp_rate": 2400000,
+                    "rf_gain": 49.6,
+                    "start_mod": "nfm"
+                },
+                "mil_uhf_228_01": {
+                    "name": "Military UHF (228-238 MHz) [228.4-231.6 MHz]",
+                    "center_freq": 230000000,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "am"
+                },
+                "mil_uhf_228_02": {
+                    "name": "Military UHF (228-238 MHz) [231.6-234.8 MHz]",
+                    "center_freq": 233200000,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "am"
+                },
+                "mil_uhf_228_03": {
+                    "name": "Military UHF (228-238 MHz) [234.8-238.0 MHz]",
+                    "center_freq": 236399999,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "am"
+                },
+                "milband_seg01": {
+                    "name": "Military Air (225-268 MHz) [225.2-228.4 MHz] (1/3)",
+                    "center_freq": 239600000,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_freq": 240000000,
+                    "start_mod": "am"
+                },
+                "mil_uhf_241_01": {
+                    "name": "Military/NATO UHF (241-288 MHz) [241.2-244.4 MHz]",
+                    "center_freq": 242799999,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "am"
+                },
+                "mil_uhf_241_02": {
+                    "name": "Military/NATO UHF (241-288 MHz) [244.4-247.6 MHz]",
+                    "center_freq": 245999999,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "am"
+                },
+                "mil_uhf_241_03": {
+                    "name": "Military/NATO UHF (241-288 MHz) [247.6-250.8 MHz]",
+                    "center_freq": 249199999,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "am"
+                },
+                "mil_uhf_241_04": {
+                    "name": "Military/NATO UHF (241-288 MHz) [250.8-254.0 MHz]",
+                    "center_freq": 252399999,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "am"
+                },
+                "mil_uhf_241_05": {
+                    "name": "Military/NATO UHF (241-288 MHz) [254.0-257.2 MHz]",
+                    "center_freq": 255599999,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "am"
+                },
+                "mil_uhf_241_06": {
+                    "name": "Military/NATO UHF (241-288 MHz) [257.2-260.4 MHz]",
+                    "center_freq": 258799999,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "am"
+                },
+                "mil_uhf_241_07": {
+                    "name": "Military/NATO UHF (241-288 MHz) [260.4-263.6 MHz]",
+                    "center_freq": 261999999,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "am"
+                },
+                "mil_uhf_241_08": {
+                    "name": "Military/NATO UHF (241-288 MHz) [263.6-266.8 MHz]",
+                    "center_freq": 265199999,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "am"
+                },
+                "mil_uhf_241_09": {
+                    "name": "Military/NATO UHF (241-288 MHz) [266.8-270.0 MHz]",
+                    "center_freq": 268399999,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "am"
+                },
+                "mil_uhf_241_10": {
+                    "name": "Military/NATO UHF (241-288 MHz) [270.0-273.2 MHz]",
+                    "center_freq": 271599999,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "am"
+                },
+                "mil_uhf_241_11": {
+                    "name": "Military/NATO UHF (241-288 MHz) [273.2-276.4 MHz]",
+                    "center_freq": 274799999,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "am"
+                },
+                "mil_uhf_241_12": {
+                    "name": "Military/NATO UHF (241-288 MHz) [276.4-279.6 MHz]",
+                    "center_freq": 277999999,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "am"
+                },
+                "mil_uhf_241_13": {
+                    "name": "Military/NATO UHF (241-288 MHz) [279.6-282.8 MHz]",
+                    "center_freq": 281199999,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "am"
+                },
+                "mil_uhf_241_14": {
+                    "name": "Military/NATO UHF (241-288 MHz) [282.8-286.0 MHz]",
+                    "center_freq": 284399999,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "am"
+                },
+                "mil_uhf_241_15": {
+                    "name": "Military/NATO UHF (241-288 MHz) [286.0-289.2 MHz]",
+                    "center_freq": 287599999,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "am"
+                },
+                "milband_seg02": {
+                    "name": "Military Air (268-310 MHz) [268-271.2 MHz] (2/3)",
+                    "center_freq": 289600000,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_freq": 289000000,
+                    "start_mod": "am"
+                },
+                "mil_uhf_291_01": {
+                    "name": "Military UHF (291-328 MHz) [291.2-294.4 MHz]",
+                    "center_freq": 292800000,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "am"
+                },
+                "mil_uhf_291_02": {
+                    "name": "Military UHF (291-328 MHz) [294.4-297.6 MHz]",
+                    "center_freq": 296000000,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "am"
+                },
+                "mil_uhf_291_03": {
+                    "name": "Military UHF (291-328 MHz) [297.6-300.8 MHz]",
+                    "center_freq": 299200000,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "am"
+                },
+                "mil_uhf_291_04": {
+                    "name": "Military UHF (291-328 MHz) [300.8-304.0 MHz]",
+                    "center_freq": 302400000,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "am"
+                },
+                "mil_uhf_291_05": {
+                    "name": "Military UHF (291-328 MHz) [304.0-307.2 MHz]",
+                    "center_freq": 305599999,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "am"
+                },
+                "mil_uhf_291_06": {
+                    "name": "Military UHF (291-328 MHz) [307.2-310.4 MHz]",
+                    "center_freq": 308799999,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "am"
+                },
+                "mil_uhf_291_07": {
+                    "name": "Military UHF (291-328 MHz) [310.4-313.6 MHz]",
+                    "center_freq": 311999999,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "am"
+                },
+                "mil_uhf_291_08": {
+                    "name": "Military UHF (291-328 MHz) [313.6-316.8 MHz]",
+                    "center_freq": 315199999,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "am"
+                },
+                "mil_uhf_291_09": {
+                    "name": "Military UHF (291-328 MHz) [316.8-320.0 MHz]",
+                    "center_freq": 318399999,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "am"
+                },
+                "mil_uhf_291_10": {
+                    "name": "Military UHF (291-328 MHz) [320.0-323.2 MHz]",
+                    "center_freq": 321599999,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "am"
+                },
+                "mil_uhf_291_11": {
+                    "name": "Military UHF (291-328 MHz) [323.2-326.4 MHz]",
+                    "center_freq": 324799999,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "am"
+                },
+                "mil_uhf_291_12": {
+                    "name": "Military UHF (291-328 MHz) [326.4-329.6 MHz]",
+                    "center_freq": 327999999,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "am"
+                },
+                "milband_seg03": {
+                    "name": "Military Air (310-350 MHz) [310-313.2 MHz] (3/3)",
+                    "center_freq": 330000000,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_freq": 330000000,
+                    "start_mod": "am"
+                },
+                "mil_uhf_331_01": {
+                    "name": "Military/Emergency UHF (331-380 MHz) [331.6-334.8 MHz]",
+                    "center_freq": 333200000,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "am"
+                },
+                "mil_uhf_331_02": {
+                    "name": "Military/Emergency UHF (331-380 MHz) [334.8-338.0 MHz]",
+                    "center_freq": 336400000,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "am"
+                },
+                "mil_uhf_331_03": {
+                    "name": "Military/Emergency UHF (331-380 MHz) [338.0-341.2 MHz]",
+                    "center_freq": 339600000,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "am"
+                },
+                "mil_uhf_331_04": {
+                    "name": "Military/Emergency UHF (331-380 MHz) [341.2-344.4 MHz]",
+                    "center_freq": 342800000,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "am"
+                },
+                "mil_uhf_331_05": {
+                    "name": "Military/Emergency UHF (331-380 MHz) [344.4-347.6 MHz]",
+                    "center_freq": 346000000,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "am"
+                },
+                "mil_uhf_331_06": {
+                    "name": "Military/Emergency UHF (331-380 MHz) [347.6-350.8 MHz]",
+                    "center_freq": 349200000,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "am"
+                },
+                "mil_uhf_331_07": {
+                    "name": "Military/Emergency UHF (331-380 MHz) [350.8-354.0 MHz]",
+                    "center_freq": 352400000,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "am"
+                },
+                "mil_uhf_331_08": {
+                    "name": "Military/Emergency UHF (331-380 MHz) [354.0-357.2 MHz]",
+                    "center_freq": 355599999,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "am"
+                },
+                "mil_uhf_331_09": {
+                    "name": "Military/Emergency UHF (331-380 MHz) [357.2-360.4 MHz]",
+                    "center_freq": 358799999,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "am"
+                },
+                "mil_uhf_331_10": {
+                    "name": "Military/Emergency UHF (331-380 MHz) [360.4-363.6 MHz]",
+                    "center_freq": 361999999,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "am"
+                },
+                "mil_uhf_331_11": {
+                    "name": "Military/Emergency UHF (331-380 MHz) [363.6-366.8 MHz]",
+                    "center_freq": 365199999,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "am"
+                },
+                "mil_uhf_331_12": {
+                    "name": "Military/Emergency UHF (331-380 MHz) [366.8-370.0 MHz]",
+                    "center_freq": 368399999,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "am"
+                },
+                "mil_uhf_331_13": {
+                    "name": "Military/Emergency UHF (331-380 MHz) [370.0-373.2 MHz]",
+                    "center_freq": 371599999,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "am"
+                },
+                "mil_uhf_331_14": {
+                    "name": "Military/Emergency UHF (331-380 MHz) [373.2-376.4 MHz]",
+                    "center_freq": 374799999,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "am"
+                },
+                "mil_uhf_331_15": {
+                    "name": "Military/Emergency UHF (331-380 MHz) [376.4-379.6 MHz]",
+                    "center_freq": 377999999,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "am"
+                },
+                "mil_uhf_331_16": {
+                    "name": "Military/Emergency UHF (331-380 MHz) [379.6-382.8 MHz]",
+                    "center_freq": 381199999,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "am"
+                },
+                "tetra_seg01": {
+                    "name": "TETRA/DMR (380-400 MHz) [380.0-383.2 MHz] (1/6)",
+                    "center_freq": 381600000,
+                    "samp_rate": 3200000,
+                    "start_freq": 381600000,
+                    "start_mod": "nfm",
+                    "rf_gain": 43,
+                    "direct_sampling": 0,
+                    "digital_voice": true,
+                    "dmr_enabled": true,
+                    "digital_modes": [
+                        "tetra",
+                        "dmr",
+                        "ysf"
+                    ],
+                    "waterfall_min_level": -64,
+                    "waterfall_max_level": -10
+                },
+                "tetra_seg02": {
+                    "name": "TETRA/DMR (380-400 MHz) [383.2-386.4 MHz] (2/6)",
+                    "center_freq": 384800000,
+                    "samp_rate": 3200000,
+                    "start_freq": 384800000,
+                    "start_mod": "nfm",
+                    "rf_gain": 43,
+                    "direct_sampling": 0,
+                    "digital_voice": true,
+                    "dmr_enabled": true,
+                    "digital_modes": [
+                        "tetra",
+                        "dmr",
+                        "ysf"
+                    ],
+                    "waterfall_min_level": -64,
+                    "waterfall_max_level": -10
+                },
+                "tetra_seg03": {
+                    "name": "TETRA/DMR (380-400 MHz) [386.4-389.6 MHz] (3/6)",
+                    "center_freq": 388000000,
+                    "samp_rate": 3200000,
+                    "start_freq": 388000000,
+                    "start_mod": "nfm",
+                    "rf_gain": 43,
+                    "direct_sampling": 0,
+                    "digital_voice": true,
+                    "dmr_enabled": true,
+                    "digital_modes": [
+                        "tetra",
+                        "dmr",
+                        "ysf"
+                    ],
+                    "waterfall_min_level": -64,
+                    "waterfall_max_level": -10
+                },
+                "tetra_seg04": {
+                    "name": "TETRA/DMR (380-400 MHz) [389.6-392.8 MHz] (4/6)",
+                    "center_freq": 391200000,
+                    "samp_rate": 3200000,
+                    "start_freq": 391200000,
+                    "start_mod": "nfm",
+                    "rf_gain": 43,
+                    "direct_sampling": 0,
+                    "digital_voice": true,
+                    "dmr_enabled": true,
+                    "digital_modes": [
+                        "tetra",
+                        "dmr",
+                        "ysf"
+                    ],
+                    "waterfall_min_level": -64,
+                    "waterfall_max_level": -10
+                },
+                "tetra_seg05": {
+                    "name": "TETRA/DMR (380-400 MHz) [392.8-396.0 MHz] (5/6)",
+                    "center_freq": 394400000,
+                    "samp_rate": 3200000,
+                    "start_freq": 394400000,
+                    "start_mod": "nfm",
+                    "rf_gain": 43,
+                    "direct_sampling": 0,
+                    "digital_voice": true,
+                    "dmr_enabled": true,
+                    "digital_modes": [
+                        "tetra",
+                        "dmr",
+                        "ysf"
+                    ],
+                    "waterfall_min_level": -64,
+                    "waterfall_max_level": -10
+                },
+                "tetra_seg06": {
+                    "name": "TETRA/DMR (380-400 MHz) [396.0-399.2 MHz] (6/6)",
+                    "center_freq": 397600000,
+                    "samp_rate": 3200000,
+                    "start_freq": 397600000,
+                    "start_mod": "nfm",
+                    "rf_gain": 43,
+                    "direct_sampling": 0,
+                    "digital_voice": true,
+                    "dmr_enabled": true,
+                    "digital_modes": [
+                        "tetra",
+                        "dmr",
+                        "ysf"
+                    ],
+                    "waterfall_min_level": -64,
+                    "waterfall_max_level": -10
+                },
+                "uhf_399_402": {
+                    "name": "UHF Services (399-402 MHz)",
+                    "center_freq": 400500000,
+                    "samp_rate": 2400000,
+                    "rf_gain": 49.6,
+                    "start_mod": "nfm"
+                },
+                "meteo_sonde": {
+                    "name": "Meteo Radiosonde (400-406 MHz)",
+                    "center_freq": 403000000,
+                    "samp_rate": 2400000,
+                    "start_freq": 403000000,
+                    "start_mod": "nfm",
+                    "rf_gain": 43,
+                    "direct_sampling": 0,
+                    "digital_voice": true,
+                    "dmr_enabled": false,
+                    "digital_modes": [
+                        "radiosondy"
+                    ],
+                    "waterfall_min_level": -64,
+                    "waterfall_max_level": -10
+                },
+                "uhf_404_01": {
+                    "name": "UHF (404-430 MHz) [404.2-407.4 MHz]",
+                    "center_freq": 405800000,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "nfm"
+                },
+                "uhf_404_02": {
+                    "name": "UHF (404-430 MHz) [407.4-410.6 MHz]",
+                    "center_freq": 409000000,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "nfm"
+                },
+                "uhf_404_03": {
+                    "name": "UHF (404-430 MHz) [410.6-413.8 MHz]",
+                    "center_freq": 412200000,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "nfm"
+                },
+                "uhf_404_04": {
+                    "name": "UHF (404-430 MHz) [413.8-417.0 MHz]",
+                    "center_freq": 415400000,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "nfm"
+                },
+                "uhf_404_05": {
+                    "name": "UHF (404-430 MHz) [417.0-420.2 MHz]",
+                    "center_freq": 418599999,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "nfm"
+                },
+                "uhf_404_06": {
+                    "name": "UHF (404-430 MHz) [420.2-423.4 MHz]",
+                    "center_freq": 421799999,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "nfm"
+                },
+                "uhf_404_07": {
+                    "name": "UHF (404-430 MHz) [423.4-426.6 MHz]",
+                    "center_freq": 424999999,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "nfm"
+                },
+                "uhf_404_08": {
+                    "name": "UHF (404-430 MHz) [426.6-429.8 MHz]",
+                    "center_freq": 428199999,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "nfm"
+                },
+                "uhf_404_09": {
+                    "name": "UHF (404-430 MHz) [429.8-433.0 MHz]",
+                    "center_freq": 431399999,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "nfm"
+                },
+                "pmr_lpd_seg01": {
+                    "name": "PMR/LPD (433-446 MHz) [433.0-436.2 MHz] (1/4)",
+                    "center_freq": 434600000,
+                    "samp_rate": 3200000,
+                    "start_freq": 434600000,
+                    "start_mod": "nfm",
+                    "rf_gain": 45,
+                    "direct_sampling": 0,
+                    "waterfall_min_level": -64,
+                    "waterfall_max_level": -10
+                },
+                "pmr_lpd_seg02": {
+                    "name": "PMR/LPD (433-446 MHz) [436.2-439.4 MHz] (2/4)",
+                    "center_freq": 437800000,
+                    "samp_rate": 3200000,
+                    "start_freq": 437800000,
+                    "start_mod": "nfm",
+                    "rf_gain": 45,
+                    "direct_sampling": 0,
+                    "waterfall_min_level": -64,
+                    "waterfall_max_level": -10
+                },
+                "pmr_lpd_seg03": {
+                    "name": "PMR/LPD (433-446 MHz) [439.4-442.6 MHz] (3/4)",
+                    "center_freq": 441000000,
+                    "samp_rate": 3200000,
+                    "start_freq": 441000000,
+                    "start_mod": "nfm",
+                    "rf_gain": 45,
+                    "direct_sampling": 0,
+                    "waterfall_min_level": -64,
+                    "waterfall_max_level": -10
+                },
+                "pmr_lpd_seg04": {
+                    "name": "LPD/ISM (433-446 MHz) [442.6-445.8 MHz] (4/4)",
+                    "center_freq": 444200000,
+                    "samp_rate": 3200000,
+                    "start_freq": 444200000,
+                    "start_mod": "nfm",
+                    "rf_gain": 45,
+                    "direct_sampling": 0,
+                    "waterfall_min_level": -64,
+                    "waterfall_max_level": -10
+                },
+                "uhf_mid_seg01": {
+                    "name": "UHF Mid (444-456 MHz) [444.0-447.2 MHz] (1/3)",
+                    "center_freq": 445600000,
+                    "samp_rate": 3200000,
+                    "start_freq": 445600000,
+                    "start_mod": "nfm",
+                    "rf_gain": 28,
+                    "direct_sampling": 0,
+                    "digital_voice": true,
+                    "dmr_enabled": false,
+                    "digital_modes": [
+                        "ft8",
+                        "ft4",
+                        "wspr",
+                        "psk31",
+                        "rtty"
+                    ],
+                    "waterfall_min_level": -64,
+                    "waterfall_max_level": -10
+                },
+                "pmr446": {
+                    "name": "PMR446 (446.0-446.2 MHz)",
+                    "center_freq": 446100000,
+                    "samp_rate": 3200000,
+                    "start_freq": 446006250,
+                    "start_mod": "nfm",
+                    "rf_gain": 45,
+                    "direct_sampling": 0,
+                    "waterfall_min_level": -64,
+                    "waterfall_max_level": -10
+                },
+                "uhf_mid_seg02": {
+                    "name": "UHF Mid (444-456 MHz) [447.2-450.4 MHz] (2/3)",
+                    "center_freq": 448800000,
+                    "samp_rate": 3200000,
+                    "start_freq": 448800000,
+                    "start_mod": "nfm",
+                    "rf_gain": 28,
+                    "direct_sampling": 0,
+                    "digital_voice": true,
+                    "dmr_enabled": false,
+                    "digital_modes": [
+                        "ft8",
+                        "ft4",
+                        "wspr",
+                        "psk31",
+                        "rtty"
+                    ],
+                    "waterfall_min_level": -64,
+                    "waterfall_max_level": -10
+                },
+                "uhf_mid_seg03": {
+                    "name": "UHF Mid (444-456 MHz) [450.4-453.6 MHz] (3/3)",
+                    "center_freq": 452000000,
+                    "samp_rate": 3200000,
+                    "start_freq": 452000000,
+                    "start_mod": "nfm",
+                    "rf_gain": 28,
+                    "direct_sampling": 0,
+                    "digital_voice": true,
+                    "dmr_enabled": false,
+                    "digital_modes": [
+                        "ft8",
+                        "ft4",
+                        "wspr",
+                        "psk31",
+                        "rtty"
+                    ],
+                    "waterfall_min_level": -64,
+                    "waterfall_max_level": -10
+                },
+                "gap_04548": {
+                    "name": "UHF [453.6-456.0 MHz]",
+                    "center_freq": 454800000,
+                    "samp_rate": 2400000,
+                    "rf_gain": 49.6,
+                    "start_mod": "nfm"
+                },
+                "uhf_454_458": {
+                    "name": "UHF (454-458 MHz)",
+                    "center_freq": 456000000,
+                    "samp_rate": 2400000,
+                    "rf_gain": 49.6,
+                    "start_mod": "nfm"
+                },
+                "gap_04584": {
+                    "name": "UHF [457.2-459.6 MHz]",
+                    "center_freq": 458400000,
+                    "samp_rate": 2400000,
+                    "rf_gain": 49.6,
+                    "start_mod": "nfm"
+                },
+                "uhf_high_seg01": {
+                    "name": "UHF High (458-470 MHz) [458.0-461.2 MHz] (1/3)",
+                    "center_freq": 459600000,
+                    "samp_rate": 3200000,
+                    "start_freq": 459600000,
+                    "start_mod": "nfm",
+                    "rf_gain": 28,
+                    "direct_sampling": 0,
+                    "digital_voice": true,
+                    "dmr_enabled": false,
+                    "digital_modes": [
+                        "ft8",
+                        "ft4",
+                        "wspr",
+                        "psk31",
+                        "rtty"
+                    ],
+                    "waterfall_min_level": -64,
+                    "waterfall_max_level": -10
+                },
+                "uhf_high_seg02": {
+                    "name": "UHF High (458-470 MHz) [461.2-464.4 MHz] (2/3)",
+                    "center_freq": 462800000,
+                    "samp_rate": 3200000,
+                    "start_freq": 462800000,
+                    "start_mod": "nfm",
+                    "rf_gain": 28,
+                    "direct_sampling": 0,
+                    "digital_voice": true,
+                    "dmr_enabled": false,
+                    "digital_modes": [
+                        "ft8",
+                        "ft4",
+                        "wspr",
+                        "psk31",
+                        "rtty"
+                    ],
+                    "waterfall_min_level": -64,
+                    "waterfall_max_level": -10
+                },
+                "uhf_high_seg03": {
+                    "name": "UHF High (458-470 MHz) [464.4-467.6 MHz] (3/3)",
+                    "center_freq": 466000000,
+                    "samp_rate": 3200000,
+                    "start_freq": 466000000,
+                    "start_mod": "nfm",
+                    "rf_gain": 28,
+                    "direct_sampling": 0,
+                    "digital_voice": true,
+                    "dmr_enabled": false,
+                    "digital_modes": [
+                        "ft8",
+                        "ft4",
+                        "wspr",
+                        "psk31",
+                        "rtty"
+                    ],
+                    "waterfall_min_level": -64,
+                    "waterfall_max_level": -10
+                },
+                "gap_04692": {
+                    "name": "UHF [467.6-470.8 MHz]",
+                    "center_freq": 469200000,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "nfm"
+                },
+                "gap_08628": {
+                    "name": "UHF ISM [861.2-864.4 MHz]",
+                    "center_freq": 862800000,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "nfm"
+                },
+                "gap_08660": {
+                    "name": "UHF ISM [864.4-867.6 MHz]",
+                    "center_freq": 866000000,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "nfm"
+                },
+                "ism_868": {
+                    "name": "ISM 868 MHz (LoRa, IoT)",
+                    "center_freq": 868000000,
+                    "samp_rate": 2400000,
+                    "start_freq": 868100000,
+                    "start_mod": "nfm",
+                    "rf_gain": 45,
+                    "direct_sampling": 0,
+                    "waterfall_min_level": -64,
+                    "waterfall_max_level": -10
+                },
+                "gap_08708": {
+                    "name": "UHF ISM [869.2-872.4 MHz]",
+                    "center_freq": 870800000,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "nfm"
+                },
+                "gap_08740": {
+                    "name": "UHF ISM [872.4-875.6 MHz]",
+                    "center_freq": 874000000,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "nfm"
+                },
+                "gap_08772": {
+                    "name": "UHF ISM [875.6-878.8 MHz]",
+                    "center_freq": 877200000,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "nfm"
+                },
+                "gap_08804": {
+                    "name": "UHF ISM [878.8-882.0 MHz]",
+                    "center_freq": 880400000,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "nfm"
+                },
+                "gap_08836": {
+                    "name": "UHF ISM [882.0-885.2 MHz]",
+                    "center_freq": 883600000,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "nfm"
+                },
+                "gap_08868": {
+                    "name": "UHF ISM [885.2-888.4 MHz]",
+                    "center_freq": 886800000,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "nfm"
+                },
+                "gap_08900": {
+                    "name": "UHF ISM [888.4-891.6 MHz]",
+                    "center_freq": 890000000,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "nfm"
+                },
+                "gap_08932": {
+                    "name": "UHF ISM [891.6-894.8 MHz]",
+                    "center_freq": 893200000,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "nfm"
+                },
+                "gap_08964": {
+                    "name": "UHF ISM [894.8-898.0 MHz]",
+                    "center_freq": 896400000,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "nfm"
+                },
+                "gap_08996": {
+                    "name": "UHF ISM [898.0-901.2 MHz]",
+                    "center_freq": 899600000,
+                    "samp_rate": 3200000,
+                    "rf_gain": 49.6,
+                    "start_mod": "nfm"
+                }
+            },
+            "rf_gain": "auto",
+            "rf_gain_auto": false,
+            "bias_tee": false
+        }
+    },
+    "waterfall_auto_levels": {
+        "min": 0.0,
+        "max": 0.0
+    },
+    "fft_size": 2048,
+    "fft_fps": 4,
+    "fft_compression": "adpcm",
+    "audio_compression": "adpcm",
+    "client_audio_buffer_size": 20,
+    "squelch_auto_margin": 10,
+    "tuning_precision": 0,
+    "backgrounddecoding": true,
+    "initial_squelch_level": -55,
+    "waterfall_levels": {
+        "min": -56.0,
+        "max": -20.0
+    },
+    "bandplan_region": 0,
+    "gps_updates": false,
+    "keep_files": 99,
+    "session_timeout": 0,
+    "usage_policy_url": "policy",
+    "allow_chat": true,
+    "allow_audio_recording": true,
+    "allow_center_freq_changes": false,
+    "magic_key": "memagic",
+    "receiver_keys": [],
+    "waterfall_scheme": "GoogleTurboWaterfall",
+    "fft_voverlap_factor": 0.3,
+    "waterfall_auto_level_default_mode": true,
+    "waterfall_auto_min_range": 50,
+    "eibi_bookmarks_range": 0,
+    "repeater_range": 0,
+    "map_type": "leaflet",
+    "google_maps_api_key": "",
+    "openweathermap_api_key": "",
+    "map_position_retention_time": 7200,
+    "map_call_retention_time": 300,
+    "map_max_calls": 5,
+    "map_ignore_indirect_reports": false,
+    "map_prefer_recent_reports": true,
+    "callsign_url": "https://www.qrzcq.com/call/{}",
+    "vessel_url": "https://www.vesselfinder.com/vessels/details/{}",
+    "flight_url": "https://flightaware.com/live/flight/{}",
+    "modes_url": "https://flightaware.com/live/modes/{}/redirect",
+    "waterfall_compression": "adpcm",
+    "samp_rate": 3200000,
+    "services_decoders": [
+        "acars",
+        "adsb",
+        "audio",
+        "dsc",
+        "eas",
+        "elektro-lrit",
+        "fax",
+        "fst4",
+        "fst4w",
+        "ft4",
+        "ft8",
+        "hfdl",
+        "ism",
+        "jt65",
+        "jt9",
+        "meteor-lrpt",
+        "navtex",
+        "page",
+        "q65",
+        "vdl2",
+        "wmbus",
+        "wspr"
+    ],
+    "bands": {
+        "160m": {
+            "name": "160m",
+            "lower_bound": 1800000,
+            "upper_bound": 2000000
+        },
+        "80m": {
+            "name": "80m",
+            "lower_bound": 3500000,
+            "upper_bound": 3800000
+        },
+        "40m": {
+            "name": "40m",
+            "lower_bound": 7000000,
+            "upper_bound": 7200000
+        },
+        "20m": {
+            "name": "20m",
+            "lower_bound": 14000000,
+            "upper_bound": 14350000
+        },
+        "aviation": {
+            "name": "Airband",
+            "lower_bound": 118000000,
+            "upper_bound": 137000000
+        },
+        "2m": {
+            "name": "2m",
+            "lower_bound": 144000000,
+            "upper_bound": 146000000
+        },
+        "70cm": {
+            "name": "70cm",
+            "lower_bound": 430000000,
+            "upper_bound": 440000000
+        }
+    },
+    "services_enabled": true,
+    "receiver_country": "",
+    "max_clients_per_ip": 20,
+    "bot_ban_enabled": true,
+    "ui_theme": "default",
+    "sonde_url": "https://sondehub.org/{}",
+    "aprs_igate_enabled": false,
+    "aprs_callsign": "N0CALL",
+    "aprs_igate_server": "euro.aprs2.net",
+    "aprs_igate_password": "",
+    "aprs_igate_beacon": false,
+    "aprs_igate_symbol": "R&",
+    "aprs_igate_comment": "OpenWebRX APRS gateway",
+    "pskreporter_enabled": false,
+    "pskreporter_callsign": "N0CALL",
+    "wsprnet_enabled": false,
+    "wsprnet_callsign": "N0CALL",
+    "mqtt_enabled": false,
+    "report_clients": true,
+    "report_radio": true,
+    "mqtt_host": "localhost",
+    "mqtt_use_ssl": false,
+    "mqtt_chat": false,
+    "mqtt_aircraft": false,
+    "mqtt_ais": false,
+    "mqtt_aprs": false,
+    "mqtt_wsjt": false,
+    "mqtt_sonde": false,
+    "rig_enabled": false,
+    "rig_model": 2,
+    "rig_device": "127.0.0.1:4533",
+    "rig_address": 0,
+    "fax_lpm": 120,
+    "fax_max_length": 3000,
+    "fax_min_length": 100,
+    "fax_postprocess": true,
+    "fax_color": false,
+    "fax_am": true
+}
