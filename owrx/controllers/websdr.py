@@ -13,7 +13,7 @@ class WebSdrSetupController(Controller):
 
     def indexAction(self):
         config = Config.get()
-        websdr_url = config.get("websdr_url", "")
+        websdr_url = (config["websdr_url"] if "websdr_url" in config else "")
         if websdr_url:
             # Redirect directly into the embedded WebSDR page
             self.send_redirect("/websdr")
@@ -62,7 +62,7 @@ class WebSdrPageController(Controller):
 
     def indexAction(self):
         config = Config.get()
-        websdr_url = config.get("websdr_url", "").strip()
+        websdr_url = config["websdr_url"].strip() if "websdr_url" in config else ""
         if not websdr_url:
             self.send_redirect("/")
             return
@@ -132,7 +132,7 @@ class WebSdrInfoApiController(Controller):
 
     def indexAction(self):
         config = Config.get()
-        url = config.get("websdr_url", "").strip()
+        url = config["websdr_url"].strip() if "websdr_url" in config else ""
         if not url:
             result = {"reachable": False, "error": "No WebSDR URL configured"}
         else:
