@@ -20,6 +20,7 @@ defaultConfig = PropertyLayer(
     fft_compression="adpcm",
     wfm_deemphasis_tau=50e-6,
     wfm_rds_rbds=False,
+    websdr_url="",
     digimodes_fft_size=2048,
     digital_voice_dmr_id_lookup=True,
     digital_voice_nxdn_id_lookup=True,

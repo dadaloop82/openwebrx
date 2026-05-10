@@ -361,6 +361,15 @@ class GeneralSettingsController(SettingsFormController):
                 ),
             ),
             Section(
+                "WebSDR Remote Source",
+                TextInput(
+                    "websdr_url",
+                    "WebSDR URL",
+                    infotext="URL di un WebSDR esterno (es. http://websdr.ewi.utwente.nl:8901/). "
+                    + "Quando impostato, il ricevitore si collegherà a questo WebSDR invece dell'hardware locale.",
+                ),
+            ),
+            Section(
                 "Change password for '{0}'".format(self.user.name),
                 PasswordInput(
                     "admin_pass_0",

@@ -33,6 +33,12 @@ from owrx.controllers.gemini_api import GeminiAnalyzeController, GeminiCaptureCo
 from owrx.controllers.robots import RobotsController
 from owrx.controllers.system_stats import SystemStatsController
 from owrx.controllers.restart import RestartController
+from owrx.controllers.websdr import (
+    WebSdrSetupController,
+    WebSdrPageController,
+    WebSdrSetUrlController,
+    WebSdrInfoApiController,
+)
 from owrx.storage import Storage
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
@@ -98,8 +104,12 @@ class RegexRoute(Route):
 class Router(object):
     def __init__(self):
         self.routes = [
-            StaticRoute("/", IndexController),
+            StaticRoute("/owrx-original", IndexController),
             StaticRoute("/robots.txt", RobotsController),
+            StaticRoute("/", WebSdrSetupController),
+            StaticRoute("/websdr", WebSdrPageController),
+            StaticRoute("/websdr/set-url", WebSdrSetUrlController, method="POST"),
+            StaticRoute("/api/websdr/info", WebSdrInfoApiController),
             StaticRoute("/status.json", StatusController),
             RegexRoute("^/static/(.+)$", OwrxAssetsController),
             RegexRoute("^/compiled/(.+)$", CompiledAssetsController),
